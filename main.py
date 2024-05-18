@@ -1,4 +1,4 @@
-from src.backend import db_check, random_pos_check, create_new_df_cari
+from src.backend import db_check, random_pos_check
 from src.scraper import get_driver, map_scraper, map_scraper_with_scrolls
 from src.utilities import clean_table_name
 
@@ -18,12 +18,9 @@ def main():
 
             driver = get_driver() # driver pertama di luar function agar bisa close driver kalau manual interrupt
 
-            df_cari = create_new_df_cari(jenis_table, filter_wilayah)
-            print(f'Ekspektasi jumlah query di cycle ini: {len(df_cari)}')
-
             # PILIH SALAH SATU
             # map_scraper(jenis, jenis_table, df_cari)
-            map_scraper_with_scrolls(jenis, jenis_table, df_cari, driver)
+            map_scraper_with_scrolls(jenis, jenis_table, filter_wilayah, driver)
 
     except KeyboardInterrupt:
         print("\nScript1 interrupted. Running cleanup script.")
