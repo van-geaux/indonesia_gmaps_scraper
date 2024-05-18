@@ -28,6 +28,7 @@ parso==0.8.4
 platformdirs==4.2.2
 prompt-toolkit==3.0.43
 psutil==5.9.8
+psycopg2==2.9.9
 pure-eval==0.2.2
 pycparser==2.22
 Pygments==2.18.0
