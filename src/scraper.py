@@ -18,6 +18,7 @@ import requests
 import sqlite3
 import time
 
+from src.backend import create_new_df_cari
 from src.utilities import create_search_link
 
 def map_scraper(jenis, jenis_table, df_cari):
@@ -130,7 +131,7 @@ def get_driver():
 
     return driver
 
-def map_scraper_with_scrolls(jenis, jenis_table, df_cari, driver):
+def map_scraper_with_scrolls(jenis, jenis_table, filter_wilayah, driver):
     proxy_count = 0
     query_count = 0
     cek_proxy = ''
@@ -138,8 +139,12 @@ def map_scraper_with_scrolls(jenis, jenis_table, df_cari, driver):
     while proxy_count < 61:
         if cek_proxy == 'Proxy gagal':
             get_driver()
+            print('Proxy baru')
         
         try:
+            df_cari = create_new_df_cari(jenis_table, filter_wilayah)
+            print(f'Ekspektasi jumlah query di cycle ini: {len(df_cari)}')
+
             for i in range(0, len(df_cari)):
                 total_time = time.time()
                 provinsi = df_cari.iloc[i].iloc[0]
@@ -230,7 +235,7 @@ def map_scraper_with_scrolls(jenis, jenis_table, df_cari, driver):
                 break
 
         except Exception:
-            pass
+            break
 
     if proxy_count > 60 and cek_proxy == 'Proxy gagal':    
         status = 'Seluruh proxy gagal'
