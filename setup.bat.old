@@ -1,0 +1,43 @@
+@echo off
+setlocal
+
+set PYTHON_CMD=
+
+python --version 2>NUL | findstr /r "^Python 3\." >NUL
+if %errorlevel% equ 0 (
+    echo Python 3 found using 'python' command.
+    set PYTHON_CMD=python
+    goto :INSTALL_PIP
+)
+
+py -3 --version 2>NUL | findstr /r "^Python 3\." >NUL
+if %errorlevel% equ 0 (
+    echo Python 3 found using 'py' command.
+    set PYTHON_CMD=py
+    goto :INSTALL_PIP
+)
+
+echo Python 3 belum terinstall.
+pause
+goto :EOF
+
+:INSTALL_PIP
+%PYTHON_CMD% -m ensurepip
+%PYTHON_CMD% -m pip install --upgrade pip
+
+echo Membuat virtual environment...
+%PYTHON_CMD% -m venv env
+
+echo Mengaktifkan virtual environment...
+call env\Scripts\activate
+
+if exist requirements.txt (
+    echo Menginstall packages dari requirements.txt...
+    pip install -r requirements.txt
+) else (
+    echo requirements.txt tidak ditemukan.
+    exit /b 1
+)
+
+:end
+endlocal

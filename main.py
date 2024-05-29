@@ -1,30 +1,79 @@
+import os
+import subprocess
+import sys
+
 from src.backend import db_check, random_pos_check
-from src.scraper import get_driver, map_scraper, map_scraper_with_scrolls
+from src.input import get_scraper_data
+from src.printer import data_print
+from src.scraper import map_scraper, map_scraper_with_scrolls, map_scraper_with_scrolls_deep
 from src.utilities import clean_table_name
 
-# TODO loop keseluruhan kode berdasarkan database jenis
+def check_and_install_env():
+    if not os.path.exists('env'):
+        print('Virtual environment tidak ditemukan. Membuat env...')
+        subprocess.check_call([sys.executable, '-m', 'venv', 'env'])
+        
+        print('Menginstall packages...')
+        subprocess.check_call([os.path.join('env', 'Scripts', 'pip'), 'install', '-r', 'requirements.txt'])
+    else:
+        print('Virtual environment ditemukan.')
+
+def activate_env():
+    env_path = os.path.join('env', 'Scripts')
+    if sys.platform == 'win32':
+        env_python = os.path.join(env_path, 'python.exe')
+    else:
+        env_python = os.path.join(env_path, 'python')
+
+    os.environ['VIRTUAL_ENV'] = os.path.abspath('env')
+    os.environ['PATH'] = env_path + os.pathsep + os.environ['PATH']
+    sys.executable = env_python
+    sys.path = [env_path] + sys.path
 
 def main():
-    try:
-        print("Running script1. Press Ctrl+C to interrupt.")
-        while True:
-            jenis = 'company registry'
-            filter_wilayah = ['PROPINSI = "JAWA TENGAH"',]
+    check_and_install_env()
+    activate_env()
+    print('\n')
 
-            jenis_table = clean_table_name(jenis, filter_wilayah)
+    print("Menjalankan script. Tekan Ctrl+C untuk membatalkan.")
+    print('\n')
 
-            db_check(jenis_table)
-            random_pos_check()
+    start_options = int(input('''1. Map scraping
+2. Simpan data hasil scraping
+                          
+Pilih kegiatan (ketik angka saja): '''))
+    
+    if start_options == 1:
+        database, proxy, jenis, propinsi, kota, kecamatan, kelurahan, scraper_input = get_scraper_data()
 
-            driver = get_driver() # driver pertama di luar function agar bisa close driver kalau manual interrupt
+        print('\n')
+        filter_wilayah = {
+            'PROPINSI': propinsi.upper(),
+            'KOTA': kota.upper(),
+            'KECAMATAN': kecamatan.upper(),
+            'KELURAHAN': kelurahan.upper()
+        }
 
-            # PILIH SALAH SATU
-            # map_scraper(jenis, jenis_table, df_cari)
-            map_scraper_with_scrolls(jenis, jenis_table, filter_wilayah, driver)
+        db_check(database, clean_table_name(jenis, filter_wilayah))
+        random_pos_check(database)
 
-    except KeyboardInterrupt:
-        print("\nScript1 interrupted. Running cleanup script.")
-        driver.close()
+        if scraper_input == 1:
+            map_scraper(database, jenis, filter_wilayah, proxy)
+        elif scraper_input == 2:
+            map_scraper_with_scrolls(database, jenis, filter_wilayah, proxy)
+        elif scraper_input == 3:
+            map_scraper_with_scrolls_deep(database, jenis, filter_wilayah, proxy)
+        else:
+            print('Pilihan invalid')
 
-if __name__ == "__main__":
+    elif start_options == 2:
+        data_print()
+
+    else:
+        print('Pilihan invalid')
+
+    print('\n')
+    input('Tekan Enter untuk keluar...')
+
+if __name__ == "__main__":    
     main()
