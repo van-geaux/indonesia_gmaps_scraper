@@ -51,7 +51,7 @@ def get_scraper_data():
     if lanjut_input.lower() in ['n', 'no']:
         database = input_database()
         print('\n')
-        proxy = input_proxy()  
+        proxy = input_proxy()
         print('\n')  
 
         jenis = input('Masukkan query pencarian (tidak boleh kosong) (contoh: "company registry" atau "restaurant"): ')
@@ -61,16 +61,16 @@ def get_scraper_data():
             print("Input invalid")
 
         propinsi = input('''Masukkan provinsi pencarian, pastikan sama persis dengan nama di database kodepos
-(boleh dikosongkan) (contoh: "JAWA TENGAH"): ''')
+(boleh dikosongkan) (contoh: "JAWA TENGAH"): ''').upper()
         print('\n')
         kota = input('''Masukkan kota pencarian, pastikan sama persis dengan nama di database kodepos
-(boleh dikosongkan) (contoh: "MAGELANG"): ''')
+(boleh dikosongkan) (contoh: "MAGELANG"): ''').upper()
         print('\n')
         kecamatan = input('''Masukkan kecamatan pencarian, pastikan sama persis dengan nama di database kodepos
-(boleh dikosongkan) (contoh: "LARANGAN"): ''')
+(boleh dikosongkan) (contoh: "LARANGAN"): ''').upper()
         print('\n')
         kelurahan = input('''Masukkan kelurahan pencarian, pastikan sama persis dengan nama di database kodepos
-(boleh dikosongkan) (contoh: "SITANGGAL"): ''')
+(boleh dikosongkan) (contoh: "SITANGGAL"): ''').upper()
 
         scraper_input = input_scraper()
 
