@@ -1,4 +1,5 @@
-# First project after learning python
+# Indonesia Google Map Business Scraper
+My first just-for-fun project after learning python
 
 ## How to use
 ### Easy way
