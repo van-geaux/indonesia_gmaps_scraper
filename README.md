@@ -37,4 +37,5 @@ python main.py
 - Rating value
 - Rating amount
 - Google tag(s)
+
 Can expand to other data easily
