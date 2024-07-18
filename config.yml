@@ -1,0 +1,39 @@
+# config.yml
+# support environment variables in .env file
+
+# Proxy authentication, leave blank if not using proxy
+Proxy:
+  Domain: rp.proxyscrape.com
+  Port: 6060
+  User: ${PROXY_USER}
+  Password: ${PROXY_PASSWORD}
+
+# Query
+# must be filled: i.e.restaurants, company registry
+Category: company registry
+
+# 'once' or 'loop' through entire data source, currently not implemented yet but dont remove or change this value!
+Scrape_address: loop
+
+# Criteria for address data loop, if all are empty will loop the entirety of address table
+Address_level:
+  Province: 
+  City: 
+  District/subdistrict: 
+  Ward/village: 
+
+# currently support sqlite and MariaDb (for external) only, plan to support csv/txt
+Data_source:
+  Local:
+    Location: backend/data.db
+    Address_table_name: randomized_pos
+  
+  # currently only support MariaDb, ignored if local (location and address table name) is not empty
+  External:
+    Type: MariaDb
+    Domain: ${SOURCE_EXTERNAL_DOMAIN}
+    Port: ${SOURCE_EXTERNAL_PORT}
+    User: ${SOURCE_EXTERNAL_USER}
+    Password: ${SOURCE_EXTERNAL_PASSWORD}
+    Database_name: scrape_google_map
+    Address_table_name: randomized_pos
