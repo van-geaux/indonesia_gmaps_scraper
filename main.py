@@ -1,13 +1,14 @@
-from src.backend import db_check, random_pos_check
-from src.input import get_scraper_data
-from src.printer import data_print
-from src.scraper import map_scraper, map_scraper_with_scrolls, map_scraper_with_scrolls_deep
-from src.utilities import clean_table_name
+from dotenv import load_dotenv
+
+from src.input import input_worker
+from src.logger import *
 
 import os
 import psutil
+import re
 import sys
 import signal
+import yaml
 
 def terminate_subprocesses():
     current_process = psutil.Process()
@@ -22,55 +23,35 @@ def signal_handler(sig, frame):
     terminate_subprocesses()
     sys.exit(0)
 
+def env_var_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    pattern = re.compile(r'\$\{(\w+)\}')
+    match = pattern.findall(value)
+    for var in match:
+        value = value.replace(f'${{{var}}}', os.getenv(var, ''))
+    return value
+
 def main():
+    load_dotenv()
+    yaml.SafeLoader.add_constructor('!env_var', env_var_constructor)
+
+    with open('config.yml', 'r') as file:
+        config_content = file.read()
+        config_content = re.sub(r'\$\{(\w+)\}', lambda match: os.getenv(match.group(1), ''), config_content)
+        config = yaml.safe_load(config_content)
+
     try:
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-        print("Menjalankan script. Tekan Ctrl+C untuk membatalkan.")
-        print('\n')
-
-        start_options = int(input('''1. Map scraping
-2. Simpan data hasil scraping
-                          
-Pilih kegiatan (ketik angka saja): '''))
-        
-        if start_options == 1:
-            database, proxy, jenis, propinsi, kota, kecamatan, kelurahan, scraper_input = get_scraper_data()
-
-            print('\n')
-            filter_wilayah = {
-                'PROPINSI': propinsi.upper(),
-                'KOTA': kota.upper(),
-                'KECAMATAN': kecamatan.upper(),
-                'KELURAHAN': kelurahan.upper()
-            }
-
-            db_check(database, clean_table_name(jenis, filter_wilayah))
-            random_pos_check(database)
-
-            if scraper_input == 1:
-                map_scraper(database, jenis, filter_wilayah, proxy)
-            elif scraper_input == 2:
-                map_scraper_with_scrolls(database, jenis, filter_wilayah, proxy)
-            elif scraper_input == 3:
-                map_scraper_with_scrolls_deep(database, jenis, filter_wilayah, proxy)
-            else:
-                print('Pilihan invalid')
-
-        elif start_options == 2:
-            data_print()
-
-        else:
-            print('Pilihan invalid')
-
-        print('\n')
-        input('Tekan Enter untuk keluar...: ')
+        input_worker(config)
 
     except KeyboardInterrupt:
-        print('\nScript dihentikan manual.')
-        input('Tekan Enter untuk keluar...: ')
+        print('\nScript stopped manually.')
+        
     finally:
+        print('\n')
+        input('Press Enter to exit...: ')
         terminate_subprocesses()
         sys.exit()
 
