@@ -12,10 +12,11 @@ Proxy:
 # must be filled: i.e.restaurants, company registry
 Category: company registry
 
-# 'once' or 'loop' through entire data source, currently not implemented yet but dont remove or change this value!
+# 'once' or 'loop' through data source based on address level below, currently not implemented yet but dont remove or change this value!
 Scrape_address: loop
 
 # Criteria for address data loop, if all are empty will loop the entirety of address table
+# Enter places name for i.e 'Jawa Barat' in Province and 'Bandung' in City
 Address_level:
   Province: 
   City: 

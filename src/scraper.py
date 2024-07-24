@@ -1,4 +1,4 @@
-from alive_progress import alive_bar
+from alive_progress import alive_bar, alive_it
 from bs4 import BeautifulSoup
 from datetime import datetime
 
@@ -20,11 +20,17 @@ from src.utilities import *
 import itertools
 import json
 import pymysql
+import re
 import requests
 import sqlite3
 import sys
 import threading
 import time
+
+# disable SSL warnings
+import warnings
+from urllib3.exceptions import InsecureRequestWarning
+warnings.simplefilter('ignore', InsecureRequestWarning)
 
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 
@@ -48,7 +54,8 @@ def get_driver(config):
 
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options, desired_capabilities=capabilities)
-    except Exception:
+    except Exception as e:
+        logger.error(f'Can\'t create driver due to: {e}')
         driver = webdriver.Chrome(service=Service('driver/124.0.6367.207/chromedriver-win32/chromedriver.exe'), options=chrome_options, desired_capabilities=capabilities)
 
     return driver
@@ -62,7 +69,8 @@ def deep_scraper(config):
         "https":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
     }
 
-    logger.info('\nChecking database, creating if not exists...')
+    print('')
+    logger.info('Checking database, creating if not exists...')
     db_check(database_type, clean_table_name(category, address_filter), config)
 
     proxy_count = 0
@@ -72,25 +80,18 @@ def deep_scraper(config):
         if config['Scrape_address'] == 'loop':
             df_search = create_new_df_search(config, database_type, category, address_filter)
             logger.info(f'Total queries expected in this scraping cycle: {len(df_search)}')
+
+        if len(df_search) < 1:
+            logger.warning('There are no matching place in the database with what you\'ve configured')
+            break
         
         logger.info('Getting new selenium driver...')
         driver = get_driver(config)
 
-        # def spinning_cursor():
-        #     spinner = itertools.cycle(['|', '/', '-', '\\'])
-        #     while not stop_loading:
-        #         sys.stdout.write(next(spinner))
-        #         sys.stdout.flush()
-        #         time.sleep(0.1)
-        #         sys.stdout.write('\b')
-
-        # stop_loading = False
-        # loading_thread = threading.Thread(target=spinning_cursor)
-        # loading_thread.start()
-
         try:
-            with alive_bar(calibrate=20) as bar:
-                for i, r in df_search.iterrows():
+            with alive_bar(calibrate=15, enrich_print=False) as bar:
+                for i in range(len(df_search)):
+                # for i, r in df_search.iterrows():
                     start_time = time.time()
                     dbtime= datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     province = df_search.iloc[i].iloc[0]
@@ -109,14 +110,14 @@ def deep_scraper(config):
                     except Exception:
                         logger.warning('Proxy failed, getting new selenium driver with new proxy...')
                         proxy_check = 'Proxy failed'
-                        bar()
                         break
 
                     try:
                         divSideBar=driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
                     except Exception:
-                        logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} empty on {ward}-ward {district}-district {city}-city {province}-province')
-                        print(f'Total time {time.time() - start_time}')
+                        logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
+                        logger.info(f'Total time {time.time() - start_time}')
+                        print('')
                         bar()
                         continue
 
@@ -141,7 +142,11 @@ def deep_scraper(config):
                         while True:
                             try:
                                 name = targets_no_ad[a].find_all("div", {'class':True})[0].find('a')['aria-label']
-                                rating = float(targets_no_ad[a].find_all('span')[4].find_all('span')[0].text.strip().replace(',','.'))
+
+                                try:
+                                    rating = float(targets_no_ad[a].find_all('span')[4].find_all('span')[0].text.strip().replace(',','.'))
+                                except:
+                                    rating = 0
 
                                 try:
                                     rating_count = int(targets_no_ad[a].find_all("div")[17].find_all("span")[4].text.strip()[1:-1].replace(',',''))
@@ -150,31 +155,63 @@ def deep_scraper(config):
 
                                 google_url = targets_no_ad[a].find_all('a')[0]['href']
 
-                                response_deep = requests.get(google_url, proxies=proxy_detail)
-                                search_data_deep = response_deep.text
-                                search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
-                                scripts_deep = search_soup_deep.find_all('script')
+                                try:
+                                    response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
+                                    search_data_deep = response_deep.text
+                                    search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
+                                    scripts_deep = search_soup_deep.find_all('script')
 
-                                # script_deep = filter(lambda x: 'window.APP_INITIALIZATION_STATE' in str(x), scripts_deep) # slower than using for and break when found
-                                for script_deep in scripts_deep:
-                                    if 'window.APP_INITIALIZATION_STATE' in str(script_deep):
-                                # data_deep = str(list(script_deep)[0]).split('=',3)[3]
-                                        data_deep = str(script_deep).split('=',3)[3]
-                                        data2_deep = data_deep.rsplit(';',10)[0].split(";window.APP_")[1].split("INITIALIZATION_STATE=")[1]
-                                        json_data_deep = json.loads(data2_deep)
-                                        type_deep = json_data_deep[3][-1][5:]
-                                        json_result_deep = json.loads(type_deep)
-                                        break
+                                    for script_deep in scripts_deep:
+                                        if 'window.APP_INITIALIZATION_STATE' in str(script_deep):
+                                            data_deep = str(script_deep).split('=',3)[3]
+                                            data2_deep = data_deep.rsplit(';',10)[0].split(";window.APP_")[1].split("INITIALIZATION_STATE=")[1]
+                                            json_data_deep = json.loads(data2_deep)
+                                            type_deep = json_data_deep[3][-1][5:]
+                                            json_result_deep = json.loads(type_deep)
+                                            break
+                                except:
+                                    pass
+                                
+                                try:
+                                    longitude = json_result_deep[6][9][2]
+                                except:
+                                    try:
+                                        coordinate = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', targets_no_ad[a].find_all("div")[0].find("a")['href'])
+                                        longitude = {coordinate.group(1)}
+                                    except:
+                                        longitude = ''
 
-                                longitude = json_result_deep[6][9][2]
-                                latitude = json_result_deep[6][9][3]
-                                address = json_result_deep[6][18]
+                                try:
+                                    latitude = json_result_deep[6][9][3]
+                                except:
+                                    try:
+                                        latitude = {coordinate.group(2)}
+                                    except:
+                                        latitude = ''
+                                
+                                try:
+                                    address = json_result_deep[6][18]
+                                except:
+                                    try:
+                                        address = [span for span in targets_no_ad[a].find_all('span', {'aria-hidden':'', 'aria-label':'', 'class':''}) if not span.find('span')][1].text.strip()
+                                    except:
+                                        address = ''
 
-                                google_tag = str(json_result_deep[6][13]).strip('[').strip(']').replace('\'','')
+                                try:
+                                    google_tag = str(json_result_deep[6][13]).strip('[').strip(']').replace('\'','')
+                                except:
+                                    try:
+                                        google_tag = [span for span in targets_no_ad[a].find_all('span', {'aria-label':'', 'aria-hidden':'', 'class':''}) if not span.find('span')][0].text.strip()
+                                    except:
+                                        google_tag = ''
 
                                 values.append((name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id, dbtime))
                                 a += 1
-                            except Exception:
+                            except IndexError:
+                                break
+                            except Exception as e:
+                                if e != 'list index out of range':
+                                    logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed due to: {e}')
                                 break
 
                         if values:
@@ -202,18 +239,19 @@ def deep_scraper(config):
                                 logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')
                                 # bar()
 
-                            logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {category} on {ward}-ward {district}-district {city}-city {province}-province input success with {a} data')
+                            logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {a} data in {ward}, {district}, {city}, {province}')
                             # bar()
 
                         else:
-                            logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} empty on {ward}-ward {district}-district {city}-city {province}-province')
+                            logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
                             # bar()
 
                     else:
-                        logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} empty on {ward}-ward {district}-district {city}-city {province}-province')
+                        logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
                         # bar()
 
-                    print(f'Total time {time.time() - start_time}')
+                    logger.info(f'Total time {time.time() - start_time}')
+                    print('')
                     bar()
 
         finally:
@@ -221,6 +259,7 @@ def deep_scraper(config):
             # loading_thread.join()
             proxy_count += 1
             try:
+                print('')
                 logger.info('Closing selenium driver...')
                 driver.close()
             except Exception:

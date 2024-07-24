@@ -47,11 +47,13 @@ def main():
         input_worker(config)
 
     except KeyboardInterrupt:
-        print('\nScript stopped manually.')
+        logger.info('Script stopped manually.')
+        pass
         
     finally:
-        print('\n')
-        input('Press Enter to exit...: ')
+        # print('\n')
+        # input('Press Enter to exit...: ')
+        logger.info('Cleaning processes...')
         terminate_subprocesses()
         sys.exit()
 
