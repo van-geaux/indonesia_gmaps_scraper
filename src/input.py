@@ -6,8 +6,7 @@ def input_worker(config):
     worker_input = int(input('''1: Scrape google map
 2: Export scrape result
 3: Delete scrape result
-4: Create new address table
-5: Exit
+4: Exit
 
 Choose what you want to do (enter only number): '''))
     if worker_input == 1:
@@ -38,10 +37,6 @@ Confirm parameters to do/continue scraping? (Y/N): ''')
         pass
 
     elif worker_input == 4:
-        logger.warning('[WARNING] Create new adress table not implemented yet. Please do so manually in the database')
-        pass
-
-    elif worker_input == 5:
         pass
 
     else:
