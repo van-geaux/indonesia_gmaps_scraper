@@ -1,18 +1,14 @@
 # Indonesia Google Map Business Scraper
 My first just-for-fun project after learning python
+Actually support global, not just Indonesia, addresses now
 
 ## How to use
-### Easy way
 - Make sure to have python installed
-- Just run main.exe
-
-### Manual way
-- Make sure to have python installed
-- Create an environment
+- Create an environment (optional)
 ```
 python -m venv env
 ```
-- Activate the environment
+- Activate the environment  (optional)
 ```
 env\Scripts\activate
 ```
@@ -25,36 +21,22 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## Database Setup
-### SQLite
-- Nothing to setup, just run the program and choose SQLite
+## Address Loop
+- The scraper works by looping through addresses
+- Create the addresses to loop through using the templates (csv or xlsx) in `backend/` (default is indonesian addresses)
 
-### MariaDb
-- Create a database first. i.e. 'scrape_map'
-- Create an 'authentication' directory
-- Inside it create a file 'mariadb' with no extension
-- Fill it with 'host,port,user,password,dbname'
-Example: mariadb.tld.com,3306,mariauser,mariapassword,scrape_map
-
-## Proxy Setup
-- I use proxyscrape but the setup should be the same for whatever proxy
-- Create an 'authentication' directory
-- Inside it create a file 'proxyscrape' with no extension, the name is still 'proxyscrape' even if you use other proxy
-- Fill it with 'user,password,host:port'
-Example: proxyuser,proxypassword,proxy.com:6060
+## Configuration
+- Edit the `config.yml` as needed
+- Make sure that everything in data source is correct according to your setup
+- If you want to use proxy and/or external database, rename `template.env` to `.env` and change the content accordingly
 
 ## Features
 - Scrape based on business type and region
-- Scrape entirety of Indonesian regions
+- Scrape entirety of Indonesian regions (default)
 - Pause/exit mid scrape and continue from last scrape
-- 3 scrapers-depth options
 - Can use local database
 - Can use proxy
-
-## 3 Scrapers Options
-- Fast, only read html from query result with no other action
-- Medium, utilize selenium to scroll results to get maximum  amount of businesses from each queries
-- Slow, same as medium but also open each businesses to get more accurate data
+- Support global addresses
 
 ## Scraped Data
 - Name
@@ -63,5 +45,3 @@ Example: proxyuser,proxypassword,proxy.com:6060
 - Rating value
 - Rating amount
 - Google tag(s)
-
-Can expand to other data easily
