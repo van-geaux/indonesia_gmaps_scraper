@@ -156,3 +156,4 @@ authentication*
 *.old
 data.db
 .bak/
+*_template.db

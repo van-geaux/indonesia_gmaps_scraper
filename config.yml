@@ -3,8 +3,8 @@
 
 # Proxy authentication, leave blank if not using proxy
 Proxy:
-  Domain: rp.proxyscrape.com
-  Port: 6060
+  Domain: ${PROXY_DOMAIN}
+  Port: ${PROXY_PORT}
   User: ${PROXY_USER}
   Password: ${PROXY_PASSWORD}
 
@@ -16,18 +16,19 @@ Category: company registry
 Scrape_address: loop
 
 # Criteria for address data loop, if all are empty will loop the entirety of address table
-# Enter places name for i.e 'Jawa Barat' in Province and 'Bandung' in City
+# Enter places name for i.e 'Jawa Barat' in Province or 'Bandung' in City
 Address_level:
   Province: 
   City: 
   District/subdistrict: 
   Ward/village: 
 
-# currently support sqlite and MariaDb (for external) only, plan to support csv/txt
 Data_source:
   Local:
-    Location: backend/data.db
-    Address_table_name: randomized_pos
+    Location: backend/data.db # needed, you can change but don't leave empty
+    Csv_location: backend/data_template.csv
+    Xlsx_location: 
+    Address_table_name: randomized_address # needed
   
   # currently only support MariaDb, ignored if local (location and address table name) is not empty
   External:
@@ -37,4 +38,4 @@ Data_source:
     User: ${SOURCE_EXTERNAL_USER}
     Password: ${SOURCE_EXTERNAL_PASSWORD}
     Database_name: scrape_google_map
-    Address_table_name: randomized_pos
+    Address_table_name: randomized_address

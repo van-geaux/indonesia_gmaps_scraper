@@ -51,6 +51,8 @@ def get_driver(config):
         prox.ssl_proxy = f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
 
         prox.add_to_capabilities(capabilities)
+    else:
+        logger.info('Not using proxy')
 
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options, desired_capabilities=capabilities)
@@ -71,7 +73,7 @@ def deep_scraper(config):
 
     print('')
     logger.info('Checking database, creating if not exists...')
-    db_check(database_type, clean_table_name(category, address_filter), config)
+    db_insert(database_type, clean_table_name(category, address_filter), config)
 
     proxy_count = 0
     proxy_check = ''

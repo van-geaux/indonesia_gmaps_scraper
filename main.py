@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 
+from src.backend import db_check
 from src.input import input_worker
 from src.logger import *
 
@@ -44,6 +45,7 @@ def main():
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
+        db_check(config)
         input_worker(config)
 
     except KeyboardInterrupt:

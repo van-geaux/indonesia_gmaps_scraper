@@ -1,9 +1,13 @@
 from datetime import datetime
 
+import csv
 import pandas as pd
 import pymysql
+import shutil
 import sqlite3
 import tabula
+
+from src.logger import *
 
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 
@@ -26,13 +30,130 @@ def clean_table_name(category, address_filter=''):
         
     return table_name
 
-def db_check(database_type, table_name, config):
+def copy_table(table_name, source_db, dest_db):
+    src_conn = sqlite3.connect(source_db)
+    src_cursor = src_conn.cursor()
+    
+    dest_conn = sqlite3.connect(dest_db)
+    dest_cursor = dest_conn.cursor()
+    
+    src_cursor.execute(f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table_name}';")
+    create_table_sql = src_cursor.fetchone()[0]
+    
+    dest_cursor.execute(create_table_sql)
+    
+    src_cursor.execute(f"SELECT * FROM {table_name};")
+    rows = src_cursor.fetchall()
+    
+    src_cursor.execute(f"PRAGMA table_info({table_name});")
+    columns = [info[1] for info in src_cursor.fetchall()]
+    columns_str = ', '.join(columns)
+    
+    for row in rows:
+        placeholders = ', '.join(['?'] * len(row))
+        dest_cursor.execute(f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders});", row)
+    
+    dest_conn.commit()
+    src_conn.close()
+    dest_conn.close()
+
+def table_check(db_path, table_name):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table_name,))
+    table_exists = cursor.fetchone() is not None
+    
+    conn.close()
+    
+    return table_exists
+
+def db_check(config):
+    try:
+        if '.db' in config['Data_source']['Local'].get('Location'):
+            try:
+                if table_check(config['Data_source']['Local'].get('Location'), config['Data_source']['Local'].get('Address_table_name')):
+                    pass
+                else:
+                    logger.info(f"Addresses database in {config['Data_source']['Local'].get('Location')} is empty, copying from template...")
+                    if config['Data_source']['Local'].get('Csv_location'):
+                        try:
+                            with open(config['Data_source']['Local'].get('Csv_location'), 'r') as csvfile:
+                                logger.info(f'Copying from {config['Data_source']['Local'].get('Csv_location')}')
+                                csvreader = csv.reader(csvfile)
+                                headers = next(csvreader)
+                                headers = [header for header in headers if header]
+                                if 'DATA_UPDATE' in headers:
+                                    headers.remove('DATA_UPDATE')
+                                columns = ', '.join([f'{header} TEXT' for header in headers[1:]])
+                                create_table_query = f"""
+                                CREATE TABLE IF NOT EXISTS {config['Data_source']['Local'].get('Address_table_name')} (
+                                    ID INTEGER PRIMARY KEY NOT NULL, 
+                                    {columns}, 
+                                    DATA_UPDATE DATETIME
+                                );
+                                """
+                                insert_query = f"""
+                                INSERT INTO {config['Data_source']['Local'].get('Address_table_name')} ({', '.join(headers[1:])}) 
+                                VALUES ({', '.join(['?' for _ in headers[1:]])});
+                                """
+                                with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
+                                    cursor = connection.cursor()
+                                    cursor.execute(create_table_query)
+                                    for row in csvreader:
+                                        row = [value for header, value in zip(headers, row) if header][1:]
+                                        cursor.execute(insert_query, row)
+                        except Exception as e:
+                            logger.error(e)
+                            raise
+                    elif config['Data_source']['Local'].get('Xlsx_location'):
+                        try:
+                            logger.info(f'Copying from {config['Data_source']['Local'].get('Xlsx_location')}')
+                            df = pd.read_excel(config['Data_source']['Local'].get('Xlsx_location'), engine='openpyxl')
+                            df = df.drop(columns=['ID'])
+                            df = df.drop(columns=['DATA_UPDATE'])
+                            columns = ', '.join([f'{col} TEXT' for col in df.columns])
+                            create_table_query = f"""
+                            CREATE TABLE IF NOT EXISTS {config['Data_source']['Local'].get('Address_table_name')} (
+                                ID INTEGER PRIMARY KEY NOT NULL, 
+                                {columns}, 
+                                DATA_UPDATE DATETIME
+                            );
+                            """
+                            with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
+                                cursor = connection.cursor()
+                                cursor.execute(create_table_query)
+                                for row in df.itertuples(index=False):
+                                    placeholders = ', '.join(['?'] * len(df.columns))
+                                    insert_query = f"INSERT INTO {config['Data_source']['Local'].get('Address_table_name')} ({', '.join(df.columns)}) VALUES ({placeholders});"
+                                    cursor.execute(insert_query, row)
+                        except Exception as e:
+                            logger.error(e)
+                            raise
+                    else:
+                        copy_table(config['Data_source']['Local'].get('Address_table_name'), 'backend/data_template.db', config['Data_source']['Local'].get('Location'))
+                    logger.info('Table copied')
+            except Exception as e:
+                # logger.info('Database not detected, copying from template...')
+                # shutil.copy('backend/data_template.db', config['Data_source']['Local'].get('Location'))
+                # logger.info('Database copied')
+                logger.error(e)
+        else:
+            logger.warning('No database source configured in "config.yml"')
+            raise
+    except Exception as e:
+        logger.error(e)
+        raise
+    else:
+        pass
+
+def db_insert(database_type, table_name, config):
     if database_type.lower() == 'sqlite':
         with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
             cursor = connection.cursor()
             tables = {
                 f"{table_name}": '"ID" INTEGER PRIMARY KEY NOT NULL, "NAME" TEXT, "LONGITUDE" TEXT, "LATITUDE" TEXT, "ADDRESS" TEXT, "RATING" REAL, "RATING_COUNT" INTEGER, "GOOGLE_TAGS" TEXT, "GOOGLE_URL" TEXT, "WARD" TEXT, "DISTRICT" TEXT, "CITY" TEXT, "PROVINCE" TEXT, "TYPE" TEXT, "SEARCH_ID" INTEGER, "DATA_UPDATE" DATETIME',
-                "randomized_pos": '"ID" INTEGER PRIMARY KEY NOT NULL, "PROPINSI" TEXT, "KOTA" TEXT, "KECAMATAN" TEXT, "KELURAHAN" TEXT, "KODEPOS" TEXT, "DATA_UPDATE"'
+                "randomized_address": '"ID" INTEGER PRIMARY KEY NOT NULL, "PROVINCE" TEXT, "CITY" TEXT, "DISTRICT" TEXT, "WARD" TEXT, "POSTAL_CODE" TEXT, "DATA_UPDATE" DATETIME'
             }
             for table, schema in tables.items():
                 cursor.execute(f'CREATE TABLE IF NOT EXISTS {table} ({schema})')
@@ -49,7 +170,7 @@ def db_check(database_type, table_name, config):
             with connection.cursor() as cursor:
                 tables = {
                     f'{table_name}': 'ID INT AUTO_INCREMENT PRIMARY KEY, NAME TEXT, LONGITUDE TEXT, LATITUDE TEXT, ADDRESS TEXT, RATING FLOAT, RATING_COUNT INT, GOOGLE_TAGS TEXT, URL TEXT, WARD TEXT, DISTRICT TEXT, CITY TEXT, PROVINCE TEXT, TYPE TEXT, SEARCH_ID INT, DATA_UPDATE DATETIME',
-                    'randomized_pos': 'ID INT AUTO_INCREMENT PRIMARY KEY, PROPINSI TEXT, KOTA TEXT, KECAMATAN TEXT, KELURAHAN TEXT, KODEPOS TEXT, DATA_UPDATE DATETIME'
+                    'randomized_address': 'ID INT AUTO_INCREMENT PRIMARY KEY, PROVINCE TEXT, CITY TEXT, DISTRICT TEXT, WARD TEXT, POSTAL_CODE TEXT, DATA_UPDATE DATETIME'
                 }
                 for table, schema in tables.items():
                     cursor.execute(f'CREATE TABLE IF NOT EXISTS {table} ({schema})')

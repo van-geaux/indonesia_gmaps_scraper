@@ -20,7 +20,7 @@ def create_new_df_search(config, database_type, category, address_filter=''):
             except Exception:
                 last_search = 0
 
-            query = f'SELECT PROPINSI, KOTA, KECAMATAN, KELURAHAN, KODEPOS, ID AS IDCARI FROM randomized_pos WHERE IDCARI > {last_search}'
+            query = f'SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID > {last_search}'
             
             try:
                 province = address_filter.get('Province').upper()
@@ -43,15 +43,15 @@ def create_new_df_search(config, database_type, category, address_filter=''):
                 ward = ''
 
             if province:
-                query += f' AND PROPINSI LIKE "%{province}%"'
+                query += f' AND PROVINCE LIKE "%{province}%"'
             if city:
-                query += f' AND KOTA LIKE "%{city}%"'
+                query += f' AND CITY LIKE "%{city}%"'
             if district:
-                query += f' AND KECAMATAN LIKE "%{district}%"'
+                query += f' AND DISTRICT LIKE "%{district}%"'
             if ward:
-                query += f' AND KELURAHAN LIKE "%{ward}%"'
+                query += f' AND WARD LIKE "%{ward}%"'
 
-            with sqlite3.connect('backend/data.db') as connection:
+            with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
                 df_search = pd.DataFrame(pd.read_sql_query(query, connection))
         
             return df_search
@@ -72,21 +72,36 @@ def create_new_df_search(config, database_type, category, address_filter=''):
                     except Exception:
                         last_search = 0
 
-                    query = f'SELECT PROPINSI, KOTA, KECAMATAN, KELURAHAN, KODEPOS, ID AS IDCARI FROM randomized_pos WHERE ID > {last_search}'
-                    if address_filter:
-                        propinsi = address_filter['PROPINSI']
-                        kota = address_filter['KOTA']
-                        kecamatan = address_filter['KECAMATAN']
-                        kelurahan = address_filter['KELURAHAN']
+                    query = f'SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID > {last_search}'
+                    
+                    try:
+                        province = address_filter.get('Province').upper()
+                    except:
+                        province = ''
+                    
+                    try:
+                        city = address_filter.get('City').upper()
+                    except:
+                        city = ''
+                    
+                    try:
+                        district = address_filter.get('District/subdistrict').upper()
+                    except:
+                        district = ''
+                    
+                    try:
+                        ward = address_filter.get('Ward/village').upper()
+                    except:
+                        ward = ''
 
-                    if propinsi:
-                        query += f' AND PROPINSI = "{propinsi}"'
-                    if kota:
-                        query += f' AND KOTA = "{kota}"'
-                    if kecamatan:
-                        query += f' AND KECAMATAN = "{kecamatan}"'
-                    if kelurahan:
-                        query += f' AND KELURAHAN = "{kelurahan}"'
+                    if province:
+                        query += f' AND PROVINCE LIKE "%{province}%"'
+                    if city:
+                        query += f' AND CITY LIKE "%{city}%"'
+                    if district:
+                        query += f' AND DISTRICT LIKE "%{district}%"'
+                    if ward:
+                        query += f' AND WARD LIKE "%{ward}%"'
 
                     cursor.execute(query)
                     rows = cursor.fetchall()
