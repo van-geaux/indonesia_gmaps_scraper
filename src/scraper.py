@@ -141,112 +141,114 @@ def deep_scraper(config):
                     if targets_no_ad:
                         values = []
                         a = 0
-                        while True:
-                            try:
-                                name = targets_no_ad[a].find_all("div", {'class':True})[0].find('a')['aria-label']
-
+                        try:
+                            while True:
                                 try:
-                                    rating = float(targets_no_ad[a].find_all('span')[4].find_all('span')[0].text.strip().replace(',','.'))
-                                except:
-                                    rating = 0
+                                    name = targets_no_ad[a].find_all("div", {'class':True})[0].find('a')['aria-label']
 
-                                try:
-                                    rating_count = int(targets_no_ad[a].find_all("div")[17].find_all("span")[4].text.strip()[1:-1].replace(',',''))
-                                except:
-                                    rating_count = 0
-
-                                google_url = targets_no_ad[a].find_all('a')[0]['href']
-
-                                try:
-                                    response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
-                                    search_data_deep = response_deep.text
-                                    search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
-                                    scripts_deep = search_soup_deep.find_all('script')
-
-                                    for script_deep in scripts_deep:
-                                        if 'window.APP_INITIALIZATION_STATE' in str(script_deep):
-                                            data_deep = str(script_deep).split('=',3)[3]
-                                            data2_deep = data_deep.rsplit(';',10)[0].split(";window.APP_")[1].split("INITIALIZATION_STATE=")[1]
-                                            json_data_deep = json.loads(data2_deep)
-                                            type_deep = json_data_deep[3][-1][5:]
-                                            json_result_deep = json.loads(type_deep)
-                                            break
-                                except:
-                                    pass
-                                
-                                try:
-                                    longitude = json_result_deep[6][9][2]
-                                except:
                                     try:
-                                        coordinate = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', targets_no_ad[a].find_all("div")[0].find("a")['href'])
-                                        longitude = {coordinate.group(1)}
+                                        rating = float(targets_no_ad[a].find_all('span')[4].find_all('span')[0].text.strip().replace(',','.'))
                                     except:
-                                        longitude = ''
+                                        rating = 0
 
-                                try:
-                                    latitude = json_result_deep[6][9][3]
-                                except:
                                     try:
-                                        latitude = {coordinate.group(2)}
+                                        rating_count = int(targets_no_ad[a].find_all("div")[17].find_all("span")[4].text.strip()[1:-1].replace(',',''))
                                     except:
-                                        latitude = ''
-                                
-                                try:
-                                    address = json_result_deep[6][18]
-                                except:
+                                        rating_count = 0
+
+                                    google_url = targets_no_ad[a].find_all('a')[0]['href']
+
                                     try:
-                                        address = [span for span in targets_no_ad[a].find_all('span', {'aria-hidden':'', 'aria-label':'', 'class':''}) if not span.find('span')][1].text.strip()
-                                    except:
-                                        address = ''
+                                        response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
+                                        search_data_deep = response_deep.text
+                                        search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
+                                        scripts_deep = search_soup_deep.find_all('script')
 
-                                try:
-                                    google_tag = str(json_result_deep[6][13]).strip('[').strip(']').replace('\'','')
-                                except:
+                                        for script_deep in scripts_deep:
+                                            if 'window.APP_INITIALIZATION_STATE' in str(script_deep):
+                                                data_deep = str(script_deep).split('=',3)[3]
+                                                data2_deep = data_deep.rsplit(';',10)[0].split(";window.APP_")[1].split("INITIALIZATION_STATE=")[1]
+                                                json_data_deep = json.loads(data2_deep)
+                                                type_deep = json_data_deep[3][-1][5:]
+                                                json_result_deep = json.loads(type_deep)
+                                                break
+                                    except:
+                                        pass
+                                    
                                     try:
-                                        google_tag = [span for span in targets_no_ad[a].find_all('span', {'aria-label':'', 'aria-hidden':'', 'class':''}) if not span.find('span')][0].text.strip()
+                                        longitude = json_result_deep[6][9][2]
                                     except:
-                                        google_tag = ''
+                                        try:
+                                            coordinate = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', targets_no_ad[a].find_all("div")[0].find("a")['href'])
+                                            longitude = {coordinate.group(1)}
+                                        except:
+                                            longitude = ''
 
-                                values.append((name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id, dbtime))
-                                a += 1
-                            except IndexError:
-                                break
-                            except Exception as e:
-                                if e != 'list index out of range':
-                                    logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed due to: {e}')
-                                break
+                                    try:
+                                        latitude = json_result_deep[6][9][3]
+                                    except:
+                                        try:
+                                            latitude = {coordinate.group(2)}
+                                        except:
+                                            latitude = ''
+                                    
+                                    try:
+                                        address = json_result_deep[6][18]
+                                    except:
+                                        try:
+                                            address = [span for span in targets_no_ad[a].find_all('span', {'aria-hidden':'', 'aria-label':'', 'class':''}) if not span.find('span')][1].text.strip()
+                                        except:
+                                            address = ''
 
-                        if values:
-                            if database_type.lower() == 'sqlite':
-                                query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-                                with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
-                                    cursor = connection.cursor()
-                                    cursor.executemany(query, values)
-                
-                            elif database_type.lower() == 'mariadb':
-                                query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
-                                host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
-                                connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
-                
-                                try:
-                                    cursor = connection.cursor()
-                                    cursor.executemany(query, values)
-                                    connection.commit()
+                                    try:
+                                        google_tag = str(json_result_deep[6][13]).strip('[').strip(']').replace('\'','')
+                                    except:
+                                        try:
+                                            google_tag = [span for span in targets_no_ad[a].find_all('span', {'aria-label':'', 'aria-hidden':'', 'class':''}) if not span.find('span')][0].text.strip()
+                                        except:
+                                            google_tag = ''
+
+                                    values.append((name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id, dbtime))
+                                    a += 1
+                                except IndexError:
+                                    break
                                 except Exception as e:
-                                    logger.error(e)
-                                finally:
-                                    connection.close()                     
-                
-                            else:
-                                logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')
+                                    if e != 'list index out of range':
+                                        logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed due to: {e}')
+                                    break
+                        
+                        finally:
+                            if values:
+                                if database_type.lower() == 'sqlite':
+                                    query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                                    with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
+                                        cursor = connection.cursor()
+                                        cursor.executemany(query, values)
+                    
+                                elif database_type.lower() == 'mariadb':
+                                    query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+                                    host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
+                                    connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
+                    
+                                    try:
+                                        cursor = connection.cursor()
+                                        cursor.executemany(query, values)
+                                        connection.commit()
+                                    except Exception as e:
+                                        logger.error(e)
+                                    finally:
+                                        connection.close()                     
+                    
+                                else:
+                                    logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')
+                                    # bar()
+
+                                logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {a} data in {ward}, {district}, {city}, {province}')
                                 # bar()
 
-                            logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {a} data in {ward}, {district}, {city}, {province}')
-                            # bar()
-
-                        else:
-                            logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
-                            # bar()
+                            else:
+                                logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
+                                # bar()
 
                     else:
                         logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
