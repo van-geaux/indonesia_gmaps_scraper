@@ -1,6 +1,6 @@
 # Indonesia Google Map Business Scraper
 My first just-for-fun project after learning python
-Actually support global, not just Indonesia, addresses now
+Actually support global, not just Indonesia, addresses now (make sure computer's language is English or Indonesian)
 
 ## How to use
 - Make sure to have python installed
