@@ -20,13 +20,13 @@ def clean_table_name(category, address_filter=''):
     table_name = category.replace(' ', '')
 
     if province:
-        table_name += f'_{province}'
+        table_name += f'_{province.replace(' ','').lower()}'
     if city:
-        table_name += f'_{city}'
+        table_name += f'_{city.replace(' ','').lower()}'
     if district:
-        table_name += f'_{district}'
+        table_name += f'_{district.replace(' ','').lower()}'
     if ward:
-        table_name += f'_{ward}'
+        table_name += f'_{ward.replace(' ','').lower()}'
         
     return table_name
 
@@ -148,38 +148,37 @@ def db_check(config):
         pass
 
 def db_insert(database_type, table_name, config):
-    if database_type.lower() == 'sqlite':
-        with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
-            cursor = connection.cursor()
-            tables = {
-                f"{table_name}": '"ID" INTEGER PRIMARY KEY NOT NULL, "NAME" TEXT, "LONGITUDE" TEXT, "LATITUDE" TEXT, "ADDRESS" TEXT, "RATING" REAL, "RATING_COUNT" INTEGER, "GOOGLE_TAGS" TEXT, "GOOGLE_URL" TEXT, "WARD" TEXT, "DISTRICT" TEXT, "CITY" TEXT, "PROVINCE" TEXT, "TYPE" TEXT, "SEARCH_ID" INTEGER, "DATA_UPDATE" DATETIME',
-                "randomized_address": '"ID" INTEGER PRIMARY KEY NOT NULL, "PROVINCE" TEXT, "CITY" TEXT, "DISTRICT" TEXT, "WARD" TEXT, "POSTAL_CODE" TEXT, "DATA_UPDATE" DATETIME'
-            }
-            for table, schema in tables.items():
-                cursor.execute(f'CREATE TABLE IF NOT EXISTS {table} ({schema})')
-
-    elif database_type.lower() == 'mariadb':
-        host = config['Data_source']['External'].get('Domain')
-        port = config['Data_source']['External'].get('Port')
-        user = config['Data_source']['External'].get('User')
-        password = config['Data_source']['External'].get('Password')
-        database = config['Data_source']['External'].get('Database_name')
-        connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
-
-        try:
-            with connection.cursor() as cursor:
+    try:
+        if database_type.lower() == 'sqlite':
+            with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
+                cursor = connection.cursor()
                 tables = {
-                    f'{table_name}': 'ID INT AUTO_INCREMENT PRIMARY KEY, NAME TEXT, LONGITUDE TEXT, LATITUDE TEXT, ADDRESS TEXT, RATING FLOAT, RATING_COUNT INT, GOOGLE_TAGS TEXT, URL TEXT, WARD TEXT, DISTRICT TEXT, CITY TEXT, PROVINCE TEXT, TYPE TEXT, SEARCH_ID INT, DATA_UPDATE DATETIME',
-                    'randomized_address': 'ID INT AUTO_INCREMENT PRIMARY KEY, PROVINCE TEXT, CITY TEXT, DISTRICT TEXT, WARD TEXT, POSTAL_CODE TEXT, DATA_UPDATE DATETIME'
-                }
+                    f"{table_name}": '"ID" INTEGER PRIMARY KEY NOT NULL, "NAME" TEXT, "LONGITUDE" TEXT, "LATITUDE" TEXT, "ADDRESS" TEXT, "RATING" REAL, "RATING_COUNT" INTEGER, "GOOGLE_TAGS" TEXT, "GOOGLE_URL" TEXT, "WARD" TEXT, "DISTRICT" TEXT, "CITY" TEXT, "PROVINCE" TEXT, "TYPE" TEXT, "SEARCH_ID" INTEGER, "DATA_UPDATE" DATETIME'}
                 for table, schema in tables.items():
                     cursor.execute(f'CREATE TABLE IF NOT EXISTS {table} ({schema})')
-            connection.commit()
-        finally:
-            connection.close()
 
-    else:
-        print('Database not recognized')
+        elif database_type.lower() == 'mariadb':
+            host = config['Data_source']['External'].get('Domain')
+            port = config['Data_source']['External'].get('Port')
+            user = config['Data_source']['External'].get('User')
+            password = config['Data_source']['External'].get('Password')
+            database = config['Data_source']['External'].get('Database_name')
+            connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
+
+            try:
+                with connection.cursor() as cursor:
+                    tables = {
+                        f'{table_name}': 'ID INT AUTO_INCREMENT PRIMARY KEY, NAME TEXT, LONGITUDE TEXT, LATITUDE TEXT, ADDRESS TEXT, RATING FLOAT, RATING_COUNT INT, GOOGLE_TAGS TEXT, URL TEXT, WARD TEXT, DISTRICT TEXT, CITY TEXT, PROVINCE TEXT, TYPE TEXT, SEARCH_ID INT, DATA_UPDATE DATETIME'}
+                    for table, schema in tables.items():
+                        cursor.execute(f'CREATE TABLE IF NOT EXISTS {table} ({schema})')
+                connection.commit()
+            finally:
+                connection.close()
+
+        else:
+            print('Database not recognized')
+    except Exception as e:
+        logger.error(e)
 
 def scrape_pos():
     with sqlite3.connect('backend/data.db') as connection:
