@@ -26,8 +26,8 @@ Address_level:
 Data_source:
   Local:
     Location: backend/data.db # needed, you can change but don't leave empty
-    Csv_location: backend/data_template.csv
-    Xlsx_location: 
+    Csv_location: backend/data_template.csv # will fill csv data to the database
+    Xlsx_location: # will fill xlsx data to the database
     Address_table_name: randomized_address # needed
   
   # currently only support MariaDb, ignored if local (location and address table name) is not empty
