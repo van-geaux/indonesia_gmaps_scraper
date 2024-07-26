@@ -36,6 +36,7 @@ warnings.simplefilter('ignore', InsecureRequestWarning)
 
 def get_driver(config):
     try:
+        logger.debug(f'Setting chrome options')
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
@@ -46,9 +47,10 @@ def get_driver(config):
 
         capabilities = webdriver.DesiredCapabilities.CHROME
     except Exception as e:
-        logger.debug(f'Setting chrome options failed: {e}')
+        logger.error(f'Setting chrome options failed: {e}')
     
     try:
+        logger.erdebugor(f'Setting selenium proxy')
         if config['Proxy'].get('Domain'):
             prox = Proxy()
             prox.proxy_type = ProxyType.MANUAL
@@ -58,7 +60,7 @@ def get_driver(config):
         else:
             logger.info('Not using proxy')
     except Exception as e:
-        logger.debug(f'Setting selenium proxy failed: {e}')
+        logger.error(f'Setting selenium proxy failed: {e}')
 
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options, desired_capabilities=capabilities)
@@ -70,6 +72,7 @@ def get_driver(config):
 
 def deep_scraper(config):
     try:
+        logger.debug(f'Getting configuration')
         database_type = ('sqlite' if config['Data_source']['Local'].get('Location') else config['Data_source']['External'].get('Type').lower())
         category = config.get('Category')
         address_filter = config['Address_level']
@@ -78,7 +81,7 @@ def deep_scraper(config):
             "https":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
         }
     except Exception as e:
-        logger.debug(f'Getting configuration failed: {e}')
+        logger.error(f'Getting configuration failed: {e}')
 
     print('')
     logger.info('Checking database, creating if not exists...')
@@ -89,11 +92,12 @@ def deep_scraper(config):
 
     while proxy_count < 10:
         try:
+            logger.debug(f'Checking loop config')
             if config['Scrape_address'] == 'loop':
                 df_search = create_new_df_search(config, database_type, category, address_filter)
                 logger.info(f'Total queries expected in this scraping cycle: {len(df_search)}')
         except Exception as e:
-            logger.debug(f'Checking loop config failed: {e}')
+            logger.error(f'Checking loop config failed: {e}')
             raise
 
         if len(df_search) < 1:
@@ -108,6 +112,7 @@ def deep_scraper(config):
                 for i in range(len(df_search)):
                 # for i, r in df_search.iterrows():
                     try:
+                        logger.debug(f'Setting value from database')
                         start_time = time.time()
                         dbtime= datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         province = df_search.iloc[i].iloc[0]
@@ -118,9 +123,10 @@ def deep_scraper(config):
                         query = f'{category} in {ward}, {district}, {city}, {province}'
                         search_url = create_search_link(query, None, '', 18)
                     except Exception as e:
-                        logger.debug(f'Setting value from database failed: {e}')
+                        logger.error(f'Setting value from database failed: {e}')
                     
                     try:
+                        logger.debug(f'Checking proxy availability')
                         driver.get(search_url)
                         try:
                             WebDriverWait(driver, 10).until(EC.title_contains("Google Maps"))
@@ -130,7 +136,7 @@ def deep_scraper(config):
                             proxy_check = 'Proxy failed'
                             break
                     except Exception as e:
-                        logger.debug(f'Checking proxy availability failed: {e}')
+                        logger.error(f'Checking proxy availability failed: {e}')
                     
                     try:
                         divSideBar=driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
@@ -145,22 +151,24 @@ def deep_scraper(config):
                     try:
                         while keepScrolling:
                             try:
+                                logger.debug(f'Page scroll')
                                 divSideBar.send_keys(Keys.PAGE_DOWN)
                                 div_html = driver.find_element(By.TAG_NAME, "html").get_attribute('outerHTML')
 
                                 if "You've reached the end of the list." in div_html or 'Anda telah mencapai akhir daftar.' in div_html:
                                     keepScrolling=False
                             except Exception as e:
-                                logger.debug(f'Page scroll failed: {e}')
+                                logger.error(f'Page scroll failed: {e}')
                     except:
                         pass
                     
                     try:
+                        logger.debug(f'Getting page html')
                         search_soup = BeautifulSoup(driver.page_source, 'html.parser')
                         targets = search_soup.find("div", {'role': 'feed'}).find_all('div', {'class': False})[:-1]
                         targets_no_ad = [div for div in targets if div.find('div', {'jsaction':True})]
                     except Exception as e:
-                        logger.debug(f'Getting page html failed: {e}')
+                        logger.error(f'Getting page html failed: {e}')
 
                     if targets_no_ad:
                         values = []
@@ -168,6 +176,8 @@ def deep_scraper(config):
                         try:
                             while True:
                                 try:
+                                    logger.debug(f'Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province}')
+
                                     name = targets_no_ad[a].find_all("div", {'class':True})[0].find('a')['aria-label']
 
                                     try:
@@ -183,6 +193,7 @@ def deep_scraper(config):
                                     google_url = targets_no_ad[a].find_all('a')[0]['href']
 
                                     try:
+                                        logger.debug(f'Getting deep values')
                                         response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
                                         search_data_deep = response_deep.text
                                         search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
@@ -197,7 +208,7 @@ def deep_scraper(config):
                                                 json_result_deep = json.loads(type_deep)
                                                 break
                                     except:
-                                        logger.debug(f'Getting deep values failed: {e}')
+                                        logger.error(f'Getting deep values failed: {e}')
                                         pass
                                     
                                     try:
@@ -238,7 +249,7 @@ def deep_scraper(config):
                                 except IndexError:
                                     break
                                 except Exception as e:
-                                    logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed due to: {e}')
+                                    logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed: {e}')
                                     break
                         
                         finally:
@@ -250,7 +261,7 @@ def deep_scraper(config):
                                             cursor = connection.cursor()
                                             cursor.executemany(query, values)
                                     except Exception as e:
-                                        logger.debug(f'Writing to sqlite failed: {e}')
+                                        logger.error(f'Writing to sqlite failed: {e}')
                     
                                 elif database_type.lower() == 'mariadb':
                                     try:
@@ -267,7 +278,7 @@ def deep_scraper(config):
                                         finally:
                                             connection.close()
                                     except Exception as e:
-                                        logger.debug(f'Writing to mariadb failed: {e}')
+                                        logger.error(f'Writing to mariadb failed: {e}')
                     
                                 else:
                                     logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')

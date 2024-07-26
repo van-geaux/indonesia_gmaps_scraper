@@ -12,6 +12,7 @@ from src.logger import *
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 
 def clean_table_name(category, address_filter=''):
+    logger.debug('Cleaning table name failed')
     try:
         province = address_filter.get('Province')
         city = address_filter.get('City')
@@ -29,11 +30,12 @@ def clean_table_name(category, address_filter=''):
         if ward:
             table_name += f'_{ward.replace(' ','').lower()}'
     except Exception as e:
-        logger.debug(f'Cleaning table name failed: {e}')
+        logger.error(f'Cleaning table name failed: {e}')
         
     return table_name
 
 def copy_table(table_name, source_db, dest_db):
+    logger.debug('Copying table from sqlite')
     try:
         src_conn = sqlite3.connect(source_db)
         src_cursor = src_conn.cursor()
@@ -61,9 +63,10 @@ def copy_table(table_name, source_db, dest_db):
         src_conn.close()
         dest_conn.close()
     except Exception as e:
-        logger.debug(f'Copying table from sqlite failed: {e}')
+        logger.error(f'Copying table from sqlite failed: {e}')
 
 def table_check(db_path, table_name):
+    logger.debug('Checking if database table exists')
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -73,7 +76,7 @@ def table_check(db_path, table_name):
         
         conn.close()
     except Exception as e:
-        logger.debug(f'Checking if database table exists failed: {e}')
+        logger.error(f'Checking if database table exists failed: {e}')
     
     return table_exists
 
@@ -87,6 +90,7 @@ def db_check(config):
                     logger.info(f"Addresses database in {config['Data_source']['Local'].get('Location')} is empty, copying from template...")
                     if config['Data_source']['Local'].get('Csv_location'):
                         try:
+                            logger.debug(f'Preparing csv file')
                             with open(config['Data_source']['Local'].get('Csv_location'), 'r') as csvfile:
                                 logger.info(f'Copying from {config['Data_source']['Local'].get('Csv_location')}')
                                 csvreader = csv.reader(csvfile)
@@ -106,6 +110,7 @@ def db_check(config):
                                 INSERT INTO {config['Data_source']['Local'].get('Address_table_name')} ({', '.join(headers[1:])}) 
                                 VALUES ({', '.join(['?' for _ in headers[1:]])});
                                 """
+                                logger.debug(f'Writing csv to database failed')
                                 try:
                                     with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
                                         cursor = connection.cursor()
@@ -114,13 +119,14 @@ def db_check(config):
                                             row = [value for header, value in zip(headers, row) if header][1:]
                                             cursor.execute(insert_query, row)
                                 except Exception as e:
-                                    logger.debug(f'Writing csv to database failed: {e}')
+                                    logger.error(f'Writing csv to database failed: {e}')
                                     
                         except Exception as e:
-                            logger.debug(f'Preparing csv file failed: {e}')
+                            logger.error(f'Preparing csv file failed: {e}')
                             raise
                     
                     elif config['Data_source']['Local'].get('Xlsx_location'):
+                        logger.debug(f'Preparing xlsx file')
                         try:
                             logger.info(f'Copying from {config['Data_source']['Local'].get('Xlsx_location')}')
                             df = pd.read_excel(config['Data_source']['Local'].get('Xlsx_location'), engine='openpyxl')
@@ -134,6 +140,7 @@ def db_check(config):
                                 DATA_UPDATE DATETIME
                             );
                             """
+                            logger.debug(f'Writing xlsx to database')
                             try:
                                 with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
                                     cursor = connection.cursor()
@@ -143,10 +150,10 @@ def db_check(config):
                                         insert_query = f"INSERT INTO {config['Data_source']['Local'].get('Address_table_name')} ({', '.join(df.columns)}) VALUES ({placeholders});"
                                         cursor.execute(insert_query, row)
                             except Exception as e:
-                                logger.debug(f'Writing xlsx to database failed: {e}')
+                                logger.error(f'Writing xlsx to database failed: {e}')
 
                         except Exception as e:
-                            logger.debug(f'Preparing xlsx file failed: {e}')
+                            logger.error(f'Preparing xlsx file failed: {e}')
                             raise
                     else:
                         copy_table(config['Data_source']['Local'].get('Address_table_name'), 'backend/data_template.db', config['Data_source']['Local'].get('Location'))
@@ -170,6 +177,7 @@ def db_check(config):
 def db_insert(database_type, table_name, config):
     try:
         if database_type.lower() == 'sqlite':
+            logger.debug(f'Creating sqlite table for query')
             try:
                 with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
                     cursor = connection.cursor()
@@ -178,9 +186,10 @@ def db_insert(database_type, table_name, config):
                     for table, schema in tables.items():
                         cursor.execute(f'CREATE TABLE IF NOT EXISTS {table} ({schema})')
             except Exception as e:
-                logger.debug(f'Creating sqlite table for query failed: {e}')
+                logger.error(f'Creating sqlite table for query failed: {e}')
 
         elif database_type.lower() == 'mariadb':
+            logger.debug(f'Creating mariadb table for query')
             try:
                 host = config['Data_source']['External'].get('Domain')
                 port = config['Data_source']['External'].get('Port')
@@ -199,7 +208,7 @@ def db_insert(database_type, table_name, config):
                 finally:
                     connection.close()
             except Exception as e:
-                logger.debug(f'Creating mariadb table for query failed: {e}')
+                logger.error(f'Creating mariadb table for query failed: {e}')
 
         else:
             logger.warning('Database not recognized')

@@ -145,6 +145,6 @@ def create_search_link(query: str, lang, geo_coordinates, zoom):
             url += geo_str
         url += f'?{urllib.parse.urlencode(params)}'
     except Exception as e:
-        logger.debug(f'Creating search link failed: {e}')
+        logger.error(f'Creating search link failed: {e}')
 
     return url

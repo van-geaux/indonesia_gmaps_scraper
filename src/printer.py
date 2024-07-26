@@ -8,10 +8,13 @@ import sqlite3
 def data_print(config):
     if config['Data_source']['Local'].get('Location'):
         logger.debug('Reading sqlite tables')
-        with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = cursor.fetchall()
+        try:
+            with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
+                cursor = connection.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                tables = cursor.fetchall()
+        except Exception as e:
+            logger.error(f'Reading sqlite tables failed: {e}')
             
         count = 0
         table_list = ''
@@ -31,17 +34,20 @@ def data_print(config):
 
             print(f'Table saved in "output/{tables[table_option - 1][0]}.csv"')
         except Exception as e:
-            print(f'[ERROR] Failed with {e}')
+            logger.error(f'Getting table data failed: {e}')
 
     elif config['Data_source']['External'].get('Type'):
         logger.debug('Getting external database configuration')
-        host = config['Data_source']['External'].get('Domain')
-        port = config['Data_source']['External'].get('Port')
-        user = config['Data_source']['External'].get('User')
-        password = config['Data_source']['External'].get('Password')
-        database = config['Data_source']['External'].get('Database_name')
-        connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
-        
+        try:
+            host = config['Data_source']['External'].get('Domain')
+            port = config['Data_source']['External'].get('Port')
+            user = config['Data_source']['External'].get('User')
+            password = config['Data_source']['External'].get('Password')
+            database = config['Data_source']['External'].get('Database_name')
+            connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
+        except Exception as e:
+            logger.error(f'Getting external database configuration failed: {e}')
+
         logger.debug('Connecting to external database')
         try:
             with connection.cursor() as cursor:
@@ -49,7 +55,7 @@ def data_print(config):
                 cursor.execute("SHOW TABLES;")
                 tables = cursor.fetchall()
         except Exception as e:
-            print(f'[ERROR] Export failed with {e}')
+            logger.error(f'Connecting to external database failed: {e}')
         finally:
             connection.close()
 
@@ -69,23 +75,26 @@ def data_print(config):
                 data = pd.DataFrame(pd.read_sql_query(query, connection))
                 data.to_csv(f'output/{tables[table_option - 1][0]}.csv')
 
-                print(f'[SUCCESS] Table saved in "output/{tables[table_option - 1][0]}.csv"')
+                logger.info(f'[SUCCESS] Table saved in "output/{tables[table_option - 1][0]}.csv"')
         except Exception as e:
             print(e)
-            print(f'[ERROR] Export failed with {e}')
+            logger.error(f'Getting table data failed: {e}')
         finally:
             connection.close()
 
     else:
-        print('[WARNING] Invalid input')
+        logger.warning('Invalid input')
 
 def data_delete(config):
     if config['Data_source']['Local'].get('Location'):
         logger.debug('Reading sqlite tables')
-        with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = cursor.fetchall()
+        try:
+            with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
+                cursor = connection.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                tables = cursor.fetchall()
+        except Exception as e:
+            logger.error(f'Reading sqlite tables failed: {e}')
             
         count = 0
         table_list = ''
@@ -97,8 +106,8 @@ def data_delete(config):
         final_confirm = input(f'Do you really want to delete that table? The process is irreversible (Y/N): ')
         
         if final_confirm.lower() == 'y':
-            logger.debug('Deleting table from sqlite')
             try:
+                logger.debug('Deleting table from sqlite')
                 with sqlite3.connect('backend/data.db') as connection:
                     cursor = connection.cursor()
                     query = f'DROP TABLE {tables[table_option - 1][0]}'
@@ -106,7 +115,7 @@ def data_delete(config):
 
                 logger.info(f'Table {tables[table_option - 1][0]} succesfully deleted')
             except Exception as e:
-                logger.error(f'Delete failed with {e}')
+                logger.debug(f'Deleting table from sqlite failed: {e}')
 
         elif final_confirm.lower() == 'n':
             pass
@@ -115,13 +124,16 @@ def data_delete(config):
 
     elif config['Data_source']['External'].get('Type'):
         logger.debug('Reading external database configuration')
-        host = config['Data_source']['External'].get('Domain')
-        port = config['Data_source']['External'].get('Port')
-        user = config['Data_source']['External'].get('User')
-        password = config['Data_source']['External'].get('Password')
-        database = config['Data_source']['External'].get('Database_name')
-        connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
-        
+        try:
+            host = config['Data_source']['External'].get('Domain')
+            port = config['Data_source']['External'].get('Port')
+            user = config['Data_source']['External'].get('User')
+            password = config['Data_source']['External'].get('Password')
+            database = config['Data_source']['External'].get('Database_name')
+            connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
+        except Exception as e:
+            logger.error(f'Reading external database configuration failed: {e}')
+
         try:
             logger.debug('Connecting to external database')
             with connection.cursor() as cursor:
@@ -129,7 +141,7 @@ def data_delete(config):
                 cursor.execute("SHOW TABLES;")
                 tables = cursor.fetchall()
         except Exception as e:
-            logger.error(f'Failed with {e}')
+            logger.error(f'Connecting to external database failed: {e}')
         finally:
             connection.close()
 
@@ -143,8 +155,8 @@ def data_delete(config):
         final_confirm = input(f'Do you really want to delete that table? The process is irreversible (Y/N): ')
 
         if final_confirm.lower() == 'y':
-            logger.debug('Deleting table from database')
             try:
+                logger.debug('Deleting table from database')
                 with connection.cursor() as cursor:
                     cursor = connection.cursor()
                     query = f'DROP TABLE {tables[table_option - 1][0]}'
@@ -152,7 +164,7 @@ def data_delete(config):
 
                     logger.info(f'Table {tables[table_option - 1][0]} succesfully deleted')
             except Exception as e:
-                logger.errorrint(f'Delete failed with {e}')
+                logger.error(f'Deleting table from database failed: {e}')
             finally:
                 connection.close()
 
