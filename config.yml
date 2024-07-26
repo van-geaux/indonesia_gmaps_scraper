@@ -40,5 +40,5 @@ Data_source:
     Database_name: scrape_google_map
     Address_table_name: randomized_address
 
-# log level defaults to info for console and warning for file
+# log level defaults to info for console and warning for file, this option will set for both
 Log_level: 

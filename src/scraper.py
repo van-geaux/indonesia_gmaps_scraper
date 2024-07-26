@@ -127,8 +127,8 @@ def deep_scraper(config):
                     
                     try:
                         logger.debug(f'Checking proxy availability')
-                        driver.get(search_url)
                         try:
+                            driver.get(search_url)
                             WebDriverWait(driver, 10).until(EC.title_contains("Google Maps"))
                             proxy_check = ''
                         except Exception:
@@ -137,6 +137,8 @@ def deep_scraper(config):
                             break
                     except Exception as e:
                         logger.error(f'Checking proxy availability failed: {e}')
+                        proxy_check = 'Proxy failed'
+                        break
                     
                     try:
                         divSideBar=driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
