@@ -35,45 +35,50 @@ warnings.simplefilter('ignore', InsecureRequestWarning)
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 
 def get_driver(config):
-    logger.debug('Setting chrome options')
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1920x1080")
+    try:
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920x1080")
 
-    chrome_options.add_argument("--log-level=3")
-    chrome_options.add_argument("--silent")
+        chrome_options.add_argument("--log-level=3")
+        chrome_options.add_argument("--silent")
 
-    capabilities = webdriver.DesiredCapabilities.CHROME
+        capabilities = webdriver.DesiredCapabilities.CHROME
+    except Exception as e:
+        logger.debug(f'Setting chrome options failed: {e}')
     
-    logger.debug('Setting chrome proxy')
-    if config['Proxy'].get('Domain'):
-        prox = Proxy()
-        prox.proxy_type = ProxyType.MANUAL
-        prox.ssl_proxy = f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
+    try:
+        if config['Proxy'].get('Domain'):
+            prox = Proxy()
+            prox.proxy_type = ProxyType.MANUAL
+            prox.ssl_proxy = f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
 
-        prox.add_to_capabilities(capabilities)
-    else:
-        logger.info('Not using proxy')
+            prox.add_to_capabilities(capabilities)
+        else:
+            logger.info('Not using proxy')
+    except Exception as e:
+        logger.debug(f'Setting selenium proxy failed: {e}')
 
-    logger.debug('Creating driver')
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options, desired_capabilities=capabilities)
     except Exception as e:
-        logger.error(f'Can\'t create driver due to: {e}')
+        logger.error(f'Creating driver failed: {e}')
         driver = webdriver.Chrome(service=Service('driver/124.0.6367.207/chromedriver-win32/chromedriver.exe'), options=chrome_options, desired_capabilities=capabilities)
 
     return driver
 
 def deep_scraper(config):
-    logger.debug('Getting configuration')
-    database_type = ('sqlite' if config['Data_source']['Local'].get('Location') else config['Data_source']['External'].get('Type').lower())
-    category = config.get('Category')
-    address_filter = config['Address_level']
+    try:
+        database_type = ('sqlite' if config['Data_source']['Local'].get('Location') else config['Data_source']['External'].get('Type').lower())
+        category = config.get('Category')
+        address_filter = config['Address_level']
 
-    proxy_detail = {
-        "https":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
-    }
+        proxy_detail = {
+            "https":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
+        }
+    except Exception as e:
+        logger.debug(f'Getting configuration failed: {e}')
 
     print('')
     logger.info('Checking database, creating if not exists...')
@@ -82,14 +87,15 @@ def deep_scraper(config):
     proxy_count = 0
     proxy_check = ''
 
-    logger.debug('Proxy count check')
     while proxy_count < 10:
-        logger.debug('Checking loop config')
-        if config['Scrape_address'] == 'loop':
-            df_search = create_new_df_search(config, database_type, category, address_filter)
-            logger.info(f'Total queries expected in this scraping cycle: {len(df_search)}')
+        try:
+            if config['Scrape_address'] == 'loop':
+                df_search = create_new_df_search(config, database_type, category, address_filter)
+                logger.info(f'Total queries expected in this scraping cycle: {len(df_search)}')
+        except Exception as e:
+            logger.debug(f'Checking loop config failed: {e}')
+            raise
 
-        logger.debug('Checking search data length')
         if len(df_search) < 1:
             logger.warning('There are no matching place in the database with what you\'ve configured')
             break
@@ -99,32 +105,33 @@ def deep_scraper(config):
 
         try:
             with alive_bar(calibrate=15, enrich_print=False) as bar:
-                logger.debug('Starting search loop')
                 for i in range(len(df_search)):
                 # for i, r in df_search.iterrows():
-                    logger.debug('Setting value from database')
-                    start_time = time.time()
-                    dbtime= datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    province = df_search.iloc[i].iloc[0]
-                    city = df_search.iloc[i].iloc[1]
-                    district = df_search.iloc[i].iloc[2]
-                    ward = df_search.iloc[i].iloc[3]
-                    search_id = int(df_search.iloc[i].iloc[5])
-                    query = f'{category} in {ward}, {district}, {city}, {province}'
-                    search_url = create_search_link(query, None, '', 18)
-                    
-                    logger.debug('Checking proxy availability')
-                    driver.get(search_url)
-
                     try:
-                        WebDriverWait(driver, 10).until(EC.title_contains("Google Maps"))
-                        proxy_check = ''
-                    except Exception:
-                        logger.warning('Proxy failed, getting new selenium driver with new proxy...')
-                        proxy_check = 'Proxy failed'
-                        break
+                        start_time = time.time()
+                        dbtime= datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        province = df_search.iloc[i].iloc[0]
+                        city = df_search.iloc[i].iloc[1]
+                        district = df_search.iloc[i].iloc[2]
+                        ward = df_search.iloc[i].iloc[3]
+                        search_id = int(df_search.iloc[i].iloc[5])
+                        query = f'{category} in {ward}, {district}, {city}, {province}'
+                        search_url = create_search_link(query, None, '', 18)
+                    except Exception as e:
+                        logger.debug(f'Setting value from database failed: {e}')
                     
-                    logger.debug('Finding feed element')
+                    try:
+                        driver.get(search_url)
+                        try:
+                            WebDriverWait(driver, 10).until(EC.title_contains("Google Maps"))
+                            proxy_check = ''
+                        except Exception:
+                            logger.warning('Proxy failed, getting new selenium driver with new proxy...')
+                            proxy_check = 'Proxy failed'
+                            break
+                    except Exception as e:
+                        logger.debug(f'Checking proxy availability failed: {e}')
+                    
                     try:
                         divSideBar=driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
                     except Exception:
@@ -134,31 +141,33 @@ def deep_scraper(config):
                         bar()
                         continue
                     
-                    logger.debug('Starting page scroll')
                     keepScrolling=True
                     try:
                         while keepScrolling:
-                            divSideBar.send_keys(Keys.PAGE_DOWN)
-                            div_html = driver.find_element(By.TAG_NAME, "html").get_attribute('outerHTML')
+                            try:
+                                divSideBar.send_keys(Keys.PAGE_DOWN)
+                                div_html = driver.find_element(By.TAG_NAME, "html").get_attribute('outerHTML')
 
-                            if "You've reached the end of the list." in div_html or 'Anda telah mencapai akhir daftar.' in div_html:
-                                keepScrolling=False
+                                if "You've reached the end of the list." in div_html or 'Anda telah mencapai akhir daftar.' in div_html:
+                                    keepScrolling=False
+                            except Exception as e:
+                                logger.debug(f'Page scroll failed: {e}')
                     except:
                         pass
                     
-                    logger.debug('Getting page info')
-                    search_soup = BeautifulSoup(driver.page_source, 'html.parser')
-                    targets = search_soup.find("div", {'role': 'feed'}).find_all('div', {'class': False})[:-1]
-                    targets_no_ad = [div for div in targets if div.find('div', {'jsaction':True})]
+                    try:
+                        search_soup = BeautifulSoup(driver.page_source, 'html.parser')
+                        targets = search_soup.find("div", {'role': 'feed'}).find_all('div', {'class': False})[:-1]
+                        targets_no_ad = [div for div in targets if div.find('div', {'jsaction':True})]
+                    except Exception as e:
+                        logger.debug(f'Getting page html failed: {e}')
 
-                    logger.debug('Starting business loop')
                     if targets_no_ad:
                         values = []
                         a = 0
                         try:
                             while True:
                                 try:
-                                    logger.debug('Getting surface values')
                                     name = targets_no_ad[a].find_all("div", {'class':True})[0].find('a')['aria-label']
 
                                     try:
@@ -173,7 +182,6 @@ def deep_scraper(config):
 
                                     google_url = targets_no_ad[a].find_all('a')[0]['href']
 
-                                    logger.debug('Getting deep values')
                                     try:
                                         response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
                                         search_data_deep = response_deep.text
@@ -189,6 +197,7 @@ def deep_scraper(config):
                                                 json_result_deep = json.loads(type_deep)
                                                 break
                                     except:
+                                        logger.debug(f'Getting deep values failed: {e}')
                                         pass
                                     
                                     try:
@@ -229,34 +238,36 @@ def deep_scraper(config):
                                 except IndexError:
                                     break
                                 except Exception as e:
-                                    if e != 'list index out of range':
-                                        logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed due to: {e}')
+                                    logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed due to: {e}')
                                     break
                         
                         finally:
                             if values:
-                                logger.debug('Looking for database')
                                 if database_type.lower() == 'sqlite':
-                                    logger.debug('Writing to sqlite')
-                                    query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-                                    with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
-                                        cursor = connection.cursor()
-                                        cursor.executemany(query, values)
+                                    try:
+                                        query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                                        with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
+                                            cursor = connection.cursor()
+                                            cursor.executemany(query, values)
+                                    except Exception as e:
+                                        logger.debug(f'Writing to sqlite failed: {e}')
                     
                                 elif database_type.lower() == 'mariadb':
-                                    logger.debug('Writing to mariadb')
-                                    query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
-                                    host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
-                                    connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
-                    
                                     try:
-                                        cursor = connection.cursor()
-                                        cursor.executemany(query, values)
-                                        connection.commit()
+                                        query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+                                        host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
+                                        connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
+                        
+                                        try:
+                                            cursor = connection.cursor()
+                                            cursor.executemany(query, values)
+                                            connection.commit()
+                                        except Exception as e:
+                                            logger.error(e)
+                                        finally:
+                                            connection.close()
                                     except Exception as e:
-                                        logger.error(e)
-                                    finally:
-                                        connection.close()                     
+                                        logger.debug(f'Writing to mariadb failed: {e}')
                     
                                 else:
                                     logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')

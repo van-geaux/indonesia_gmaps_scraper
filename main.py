@@ -36,11 +36,13 @@ def main():
     load_dotenv()
     yaml.SafeLoader.add_constructor('!env_var', env_var_constructor)
 
-    logger.debug('Opening configuration file')
-    with open('config.yml', 'r') as file:
-        config_content = file.read()
-        config_content = re.sub(r'\$\{(\w+)\}', lambda match: os.getenv(match.group(1), ''), config_content)
-        config = yaml.safe_load(config_content)
+    try:
+        with open('config.yml', 'r') as file:
+            config_content = file.read()
+            config_content = re.sub(r'\$\{(\w+)\}', lambda match: os.getenv(match.group(1), ''), config_content)
+            config = yaml.safe_load(config_content)
+    except Exception as e:
+        logger.debug(f'Failed opening configuration file: {e}')
 
     try:
         signal.signal(signal.SIGINT, signal_handler)
