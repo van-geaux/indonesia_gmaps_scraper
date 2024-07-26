@@ -20,7 +20,7 @@ def terminate_subprocesses():
         child.kill()
 
 def signal_handler(sig, frame):
-    print("\nSignal received, terminating subprocesses...")
+    print("\nSignal received, terminating subprocesses, waiting to finish last query processed...")
     terminate_subprocesses()
     sys.exit(0)
 

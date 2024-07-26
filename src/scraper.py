@@ -50,7 +50,7 @@ def get_driver(config):
         logger.error(f'Setting chrome options failed: {e}')
     
     try:
-        logger.erdebugor(f'Setting selenium proxy')
+        logger.debug(f'Setting selenium proxy')
         if config['Proxy'].get('Domain'):
             prox = Proxy()
             prox.proxy_type = ProxyType.MANUAL
