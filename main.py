@@ -36,6 +36,7 @@ def main():
     load_dotenv()
     yaml.SafeLoader.add_constructor('!env_var', env_var_constructor)
 
+    logger.debug('Opening configuration file')
     with open('config.yml', 'r') as file:
         config_content = file.read()
         config_content = re.sub(r'\$\{(\w+)\}', lambda match: os.getenv(match.group(1), ''), config_content)

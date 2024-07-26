@@ -39,3 +39,6 @@ Data_source:
     Password: ${SOURCE_EXTERNAL_PASSWORD}
     Database_name: scrape_google_map
     Address_table_name: randomized_address
+
+# log level defaults to info for console and warning for file
+Log_level: 

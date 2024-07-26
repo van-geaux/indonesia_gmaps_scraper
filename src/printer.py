@@ -1,4 +1,5 @@
 from src.input import *
+from src.logger import *
 
 import pandas as pd
 import pymysql
@@ -6,6 +7,7 @@ import sqlite3
 
 def data_print(config):
     if config['Data_source']['Local'].get('Location'):
+        logger.debug('Reading sqlite tables')
         with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -20,6 +22,7 @@ def data_print(config):
         table_option = int(input(f'{table_list}\nChoose the table you want to export (enter only number): '))
 
         try:
+            logger.debug('Getting table data')
             with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
                 cursor = connection.cursor()
                 query = f'SELECT * FROM {tables[table_option - 1][0]}'
@@ -31,6 +34,7 @@ def data_print(config):
             print(f'[ERROR] Failed with {e}')
 
     elif config['Data_source']['External'].get('Type'):
+        logger.debug('Getting external database configuration')
         host = config['Data_source']['External'].get('Domain')
         port = config['Data_source']['External'].get('Port')
         user = config['Data_source']['External'].get('User')
@@ -38,6 +42,7 @@ def data_print(config):
         database = config['Data_source']['External'].get('Database_name')
         connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
         
+        logger.debug('Connecting to external database')
         try:
             with connection.cursor() as cursor:
                 cursor = connection.cursor()
@@ -57,6 +62,7 @@ def data_print(config):
         table_option = int(input(f'{table_list}\nChoose the table you want to export (enter only number): '))
 
         try:
+            logger.debug('Getting table data')
             with connection.cursor() as cursor:
                 cursor = connection.cursor()
                 query = f'SELECT * FROM {tables[table_option - 1][0]}'
@@ -75,6 +81,7 @@ def data_print(config):
 
 def data_delete(config):
     if config['Data_source']['Local'].get('Location'):
+        logger.debug('Reading sqlite tables')
         with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -90,22 +97,24 @@ def data_delete(config):
         final_confirm = input(f'Do you really want to delete that table? The process is irreversible (Y/N): ')
         
         if final_confirm.lower() == 'y':
+            logger.debug('Deleting table from sqlite')
             try:
                 with sqlite3.connect('backend/data.db') as connection:
                     cursor = connection.cursor()
                     query = f'DROP TABLE {tables[table_option - 1][0]}'
                     cursor.execute(query)
 
-                print(f'Table {tables[table_option - 1][0]} succesfully deleted')
+                logger.info(f'Table {tables[table_option - 1][0]} succesfully deleted')
             except Exception as e:
-                print(f'[ERROR] Delete failed with {e}')
+                logger.error(f'Delete failed with {e}')
 
         elif final_confirm.lower() == 'n':
             pass
         else:
-            print('[WARNING] Invalid input')
+            logger.warning('Invalid input')
 
     elif config['Data_source']['External'].get('Type'):
+        logger.debug('Reading external database configuration')
         host = config['Data_source']['External'].get('Domain')
         port = config['Data_source']['External'].get('Port')
         user = config['Data_source']['External'].get('User')
@@ -114,12 +123,13 @@ def data_delete(config):
         connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
         
         try:
+            logger.debug('Connecting to external database')
             with connection.cursor() as cursor:
                 cursor = connection.cursor()
                 cursor.execute("SHOW TABLES;")
                 tables = cursor.fetchall()
         except Exception as e:
-            print(f'[ERROR] Failed with {e}')
+            logger.error(f'Failed with {e}')
         finally:
             connection.close()
 
@@ -133,22 +143,23 @@ def data_delete(config):
         final_confirm = input(f'Do you really want to delete that table? The process is irreversible (Y/N): ')
 
         if final_confirm.lower() == 'y':
+            logger.debug('Deleting table from database')
             try:
                 with connection.cursor() as cursor:
                     cursor = connection.cursor()
                     query = f'DROP TABLE {tables[table_option - 1][0]}'
                     cursor.execute(query)
 
-                    print(f'Table {tables[table_option - 1][0]} succesfully deleted')
+                    logger.info(f'Table {tables[table_option - 1][0]} succesfully deleted')
             except Exception as e:
-                print(f'[ERROR] Delete failed with {e}')
+                logger.errorrint(f'Delete failed with {e}')
             finally:
                 connection.close()
 
         elif final_confirm.lower() == 'n':
             pass
         else:
-            print('[WARNING] Invalid input')
+            logger.warning('Invalid input')
 
     else:
-        print('[WARNING] Invalid input')
+        logger.warning('Invalid input')

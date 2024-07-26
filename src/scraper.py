@@ -35,6 +35,7 @@ warnings.simplefilter('ignore', InsecureRequestWarning)
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 
 def get_driver(config):
+    logger.debug('Setting chrome options')
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
@@ -45,6 +46,7 @@ def get_driver(config):
 
     capabilities = webdriver.DesiredCapabilities.CHROME
     
+    logger.debug('Setting chrome proxy')
     if config['Proxy'].get('Domain'):
         prox = Proxy()
         prox.proxy_type = ProxyType.MANUAL
@@ -54,6 +56,7 @@ def get_driver(config):
     else:
         logger.info('Not using proxy')
 
+    logger.debug('Creating driver')
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options, desired_capabilities=capabilities)
     except Exception as e:
@@ -63,6 +66,7 @@ def get_driver(config):
     return driver
 
 def deep_scraper(config):
+    logger.debug('Getting configuration')
     database_type = ('sqlite' if config['Data_source']['Local'].get('Location') else config['Data_source']['External'].get('Type').lower())
     category = config.get('Category')
     address_filter = config['Address_level']
@@ -78,11 +82,14 @@ def deep_scraper(config):
     proxy_count = 0
     proxy_check = ''
 
+    logger.debug('Proxy count check')
     while proxy_count < 10:
+        logger.debug('Checking loop config')
         if config['Scrape_address'] == 'loop':
             df_search = create_new_df_search(config, database_type, category, address_filter)
             logger.info(f'Total queries expected in this scraping cycle: {len(df_search)}')
 
+        logger.debug('Checking search data length')
         if len(df_search) < 1:
             logger.warning('There are no matching place in the database with what you\'ve configured')
             break
@@ -92,8 +99,10 @@ def deep_scraper(config):
 
         try:
             with alive_bar(calibrate=15, enrich_print=False) as bar:
+                logger.debug('Starting search loop')
                 for i in range(len(df_search)):
                 # for i, r in df_search.iterrows():
+                    logger.debug('Setting value from database')
                     start_time = time.time()
                     dbtime= datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     province = df_search.iloc[i].iloc[0]
@@ -104,6 +113,7 @@ def deep_scraper(config):
                     query = f'{category} in {ward}, {district}, {city}, {province}'
                     search_url = create_search_link(query, None, '', 18)
                     
+                    logger.debug('Checking proxy availability')
                     driver.get(search_url)
 
                     try:
@@ -113,7 +123,8 @@ def deep_scraper(config):
                         logger.warning('Proxy failed, getting new selenium driver with new proxy...')
                         proxy_check = 'Proxy failed'
                         break
-
+                    
+                    logger.debug('Finding feed element')
                     try:
                         divSideBar=driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
                     except Exception:
@@ -122,7 +133,8 @@ def deep_scraper(config):
                         print('')
                         bar()
                         continue
-
+                    
+                    logger.debug('Starting page scroll')
                     keepScrolling=True
                     try:
                         while keepScrolling:
@@ -133,17 +145,20 @@ def deep_scraper(config):
                                 keepScrolling=False
                     except:
                         pass
-
+                    
+                    logger.debug('Getting page info')
                     search_soup = BeautifulSoup(driver.page_source, 'html.parser')
                     targets = search_soup.find("div", {'role': 'feed'}).find_all('div', {'class': False})[:-1]
                     targets_no_ad = [div for div in targets if div.find('div', {'jsaction':True})]
 
+                    logger.debug('Starting business loop')
                     if targets_no_ad:
                         values = []
                         a = 0
                         try:
                             while True:
                                 try:
+                                    logger.debug('Getting surface values')
                                     name = targets_no_ad[a].find_all("div", {'class':True})[0].find('a')['aria-label']
 
                                     try:
@@ -158,6 +173,7 @@ def deep_scraper(config):
 
                                     google_url = targets_no_ad[a].find_all('a')[0]['href']
 
+                                    logger.debug('Getting deep values')
                                     try:
                                         response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
                                         search_data_deep = response_deep.text
@@ -219,13 +235,16 @@ def deep_scraper(config):
                         
                         finally:
                             if values:
+                                logger.debug('Looking for database')
                                 if database_type.lower() == 'sqlite':
+                                    logger.debug('Writing to sqlite')
                                     query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
                                     with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
                                         cursor = connection.cursor()
                                         cursor.executemany(query, values)
                     
                                 elif database_type.lower() == 'mariadb':
+                                    logger.debug('Writing to mariadb')
                                     query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
                                     host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
                                     connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)

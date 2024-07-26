@@ -12,6 +12,7 @@ from src.logger import *
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 
 def clean_table_name(category, address_filter=''):
+    logger.debug('Cleaning table name')
     province = address_filter.get('Province')
     city = address_filter.get('City')
     district = address_filter.get('District/subdistrict')
@@ -31,6 +32,7 @@ def clean_table_name(category, address_filter=''):
     return table_name
 
 def copy_table(table_name, source_db, dest_db):
+    logger.debug('Copying table from sqlite')
     src_conn = sqlite3.connect(source_db)
     src_cursor = src_conn.cursor()
     
@@ -58,6 +60,7 @@ def copy_table(table_name, source_db, dest_db):
     dest_conn.close()
 
 def table_check(db_path, table_name):
+    logger.debug('Checking if database table exists')
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
@@ -72,11 +75,13 @@ def db_check(config):
     try:
         if '.db' in config['Data_source']['Local'].get('Location'):
             try:
+                logger.debug('Checking if database exists')
                 if table_check(config['Data_source']['Local'].get('Location'), config['Data_source']['Local'].get('Address_table_name')):
                     pass
                 else:
                     logger.info(f"Addresses database in {config['Data_source']['Local'].get('Location')} is empty, copying from template...")
                     if config['Data_source']['Local'].get('Csv_location'):
+                        logger.debug('Preparing csv file')
                         try:
                             with open(config['Data_source']['Local'].get('Csv_location'), 'r') as csvfile:
                                 logger.info(f'Copying from {config['Data_source']['Local'].get('Csv_location')}')
@@ -98,6 +103,7 @@ def db_check(config):
                                 VALUES ({', '.join(['?' for _ in headers[1:]])});
                                 """
                                 with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
+                                    logger.debug('Writing csv to database')
                                     cursor = connection.cursor()
                                     cursor.execute(create_table_query)
                                     for row in csvreader:
@@ -106,7 +112,9 @@ def db_check(config):
                         except Exception as e:
                             logger.error(e)
                             raise
+                    
                     elif config['Data_source']['Local'].get('Xlsx_location'):
+                        logger.debug('Preparing xlsx file')
                         try:
                             logger.info(f'Copying from {config['Data_source']['Local'].get('Xlsx_location')}')
                             df = pd.read_excel(config['Data_source']['Local'].get('Xlsx_location'), engine='openpyxl')
@@ -121,6 +129,7 @@ def db_check(config):
                             );
                             """
                             with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
+                                logger.debug('Writing xlsx to database')
                                 cursor = connection.cursor()
                                 cursor.execute(create_table_query)
                                 for row in df.itertuples(index=False):
@@ -150,6 +159,7 @@ def db_check(config):
 def db_insert(database_type, table_name, config):
     try:
         if database_type.lower() == 'sqlite':
+            logger.debug('Creating sqlite table for query')
             with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
                 cursor = connection.cursor()
                 tables = {
@@ -158,6 +168,7 @@ def db_insert(database_type, table_name, config):
                     cursor.execute(f'CREATE TABLE IF NOT EXISTS {table} ({schema})')
 
         elif database_type.lower() == 'mariadb':
+            logger.debug('Creating mariadb table for query')
             host = config['Data_source']['External'].get('Domain')
             port = config['Data_source']['External'].get('Port')
             user = config['Data_source']['External'].get('User')
@@ -176,7 +187,7 @@ def db_insert(database_type, table_name, config):
                 connection.close()
 
         else:
-            print('Database not recognized')
+            logger.warning('Database not recognized')
     except Exception as e:
         logger.error(e)
 
