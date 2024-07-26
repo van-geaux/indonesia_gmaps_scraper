@@ -208,7 +208,6 @@ def deep_scraper(config):
                                                 json_result_deep = json.loads(type_deep)
                                                 break
                                     except:
-                                        logger.error(f'Getting deep values failed: {e}')
                                         pass
                                     
                                     try:
