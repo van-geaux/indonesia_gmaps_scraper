@@ -157,3 +157,5 @@ authentication*
 data.db
 .bak/
 *_template.db
+*.zip
+proxy_extension*

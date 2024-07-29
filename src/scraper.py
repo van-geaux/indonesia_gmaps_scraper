@@ -16,6 +16,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from src.backend import *
+from src.driver import *
 from src.logger import logger
 from src.utilities import *
 
@@ -46,45 +47,6 @@ http = requests.Session()
 http.mount("https://", adapter)
 http.mount("http://", adapter)
 
-def get_driver(config):
-    try:
-        logger.debug(f'Setting chrome options')
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920x1080")
-
-        chrome_options.add_argument("--log-level=3")
-        chrome_options.add_argument("--silent")
-
-        capabilities = webdriver.DesiredCapabilities.CHROME
-    except Exception as e:
-        logger.error(f'Setting chrome options failed: {e}')
-    
-    try:
-        logger.debug(f'Setting selenium proxy')
-        if config['Proxy'].get('Domain'):
-            prox = Proxy()
-            prox.proxy_type = ProxyType.MANUAL
-            prox.ssl_proxy = f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
-
-            prox.add_to_capabilities(capabilities)
-        else:
-            logger.info('Not using proxy')
-    except Exception as e:
-        logger.error(f'Setting selenium proxy failed: {e}')
-
-    try:
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options, desired_capabilities=capabilities)
-    except:
-        try:
-            driver = webdriver.Chrome(service=Service('driver/chromedriver.exe'), options=chrome_options, desired_capabilities=capabilities)
-        except Exception as e:
-            logger.error(f'Creating driver failed: {e}')
-        
-
-    return driver
-
 def deep_scraper(config):
     try:
         logger.debug(f'Getting configuration')
@@ -93,7 +55,7 @@ def deep_scraper(config):
         address_filter = config['Address_level']
 
         proxy_detail = {
-            "http":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
+            "https":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
         }
         logger.debug(proxy_detail)
     except Exception as e:
@@ -121,7 +83,7 @@ def deep_scraper(config):
             break
         
         logger.info('Getting new selenium driver...')
-        driver = get_driver(config)
+        driver = get_driver_extension(config)
 
         try:
             with alive_bar(calibrate=15, enrich_print=False) as bar:
@@ -144,11 +106,22 @@ def deep_scraper(config):
                     try:
                         logger.debug(f'Checking proxy availability')
                         try:
+                            # try:
+                            #     loglevel = config.get('Log_level')
+                            # except:
+                            #     loglevel = 'other'
+
+                            # if loglevel.lower() == 'debug':
+                            #     driver.get("http://httpbin.org/ip")
+                            #     ip_element = driver.find_element(By.TAG_NAME, "body")
+                            #     current_ip = ip_element.text
+                            #     logger.debug(f"Current IP: {current_ip}")
+
                             driver.get(search_url)
                             WebDriverWait(driver, 10).until(EC.title_contains("Google Maps"))
                             proxy_check = ''
-                        except Exception:
-                            logger.warning('Proxy failed, getting new selenium driver with new proxy...')
+                        except Exception as e:
+                            logger.warning(f'Proxy failed, getting new selenium driver with new proxy: {e}')
                             proxy_check = 'Proxy failed'
                             break
                     except Exception as e:
