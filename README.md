@@ -26,6 +26,12 @@ python main.py
 - The scraper works by looping through addresses
 - Create the addresses to loop through using the templates (csv or xlsx) in `backend/` (default is indonesian addresses)
 
+## Driver
+- The script will try to donwload best chrome driver compatible for you
+- In the case of you get an error about the driver, first check your chrome browser version
+- Then download the `chromedriver` for your version [here](https://googlechromelabs.github.io/chrome-for-testing/) (latest) or [here](https://sites.google.com/chromium.org/driver/downloads/version-selection?authuser=0)
+- Extract the `chromedriver.exe` and put it in the `driver` folder
+
 ## Configuration
 - Edit the `config.yml` as needed
 - Make sure that everything in data source is correct according to your setup
