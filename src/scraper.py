@@ -14,17 +14,14 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from src.backend import *
-from src.logger import *
+from src.logger import logger
 from src.utilities import *
 
-import itertools
 import json
 import pymysql
 import re
 import requests
 import sqlite3
-import sys
-import threading
 import time
 
 # disable SSL warnings
@@ -64,9 +61,12 @@ def get_driver(config):
 
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options, desired_capabilities=capabilities)
-    except Exception as e:
-        logger.error(f'Creating driver failed: {e}')
-        driver = webdriver.Chrome(service=Service('driver/124.0.6367.207/chromedriver-win32/chromedriver.exe'), options=chrome_options, desired_capabilities=capabilities)
+    except:
+        try:
+            driver = webdriver.Chrome(service=Service('driver/chromedriver.exe'), options=chrome_options, desired_capabilities=capabilities)
+        except Exception as e:
+            logger.error(f'Creating driver failed: {e}')
+        
 
     return driver
 
@@ -112,7 +112,7 @@ def deep_scraper(config):
                 for i in range(len(df_search)):
                 # for i, r in df_search.iterrows():
                     try:
-                        logger.debug(f'Setting value from database')
+                        logger.debug(f'Setting search query from database')
                         start_time = time.time()
                         dbtime= datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         province = df_search.iloc[i].iloc[0]
@@ -123,7 +123,7 @@ def deep_scraper(config):
                         query = f'{category} in {ward}, {district}, {city}, {province}'
                         search_url = create_search_link(query, None, '', 18)
                     except Exception as e:
-                        logger.error(f'Setting value from database failed: {e}')
+                        logger.error(f'Setting search query from database failed: {e}')
                     
                     try:
                         logger.debug(f'Checking proxy availability')
@@ -176,10 +176,9 @@ def deep_scraper(config):
                         values = []
                         a = 0
                         try:
+                            logger.info(f'Query {i+1}/{len(df_search)} Getting data for {ward}, {district}, {city}, {province}')
                             while True:
                                 try:
-                                    logger.debug(f'Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province}')
-
                                     name = targets_no_ad[a].find_all("div", {'class':True})[0].find('a')['aria-label']
 
                                     try:
@@ -195,7 +194,7 @@ def deep_scraper(config):
                                     google_url = targets_no_ad[a].find_all('a')[0]['href']
 
                                     try:
-                                        logger.debug(f'Getting deep values')
+                                        logger.info(f'Getting business data for "{name}"')
                                         response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
                                         search_data_deep = response_deep.text
                                         search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
@@ -209,15 +208,16 @@ def deep_scraper(config):
                                                 type_deep = json_data_deep[3][-1][5:]
                                                 json_result_deep = json.loads(type_deep)
                                                 break
-                                    except:
-                                        pass
+                                    except Exception as e:
+                                        json_result_deep = ''
+                                        logger.error(f'Getting business data for "{name}" failed: {e}')
                                     
                                     try:
                                         longitude = json_result_deep[6][9][2]
                                     except:
                                         try:
                                             coordinate = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', targets_no_ad[a].find_all("div")[0].find("a")['href'])
-                                            longitude = {coordinate.group(1)}
+                                            longitude = float(coordinate.group(1))
                                         except:
                                             longitude = ''
 
@@ -225,7 +225,7 @@ def deep_scraper(config):
                                         latitude = json_result_deep[6][9][3]
                                     except:
                                         try:
-                                            latitude = {coordinate.group(2)}
+                                            latitude = float(coordinate.group(2))
                                         except:
                                             latitude = ''
                                     
@@ -263,6 +263,8 @@ def deep_scraper(config):
                                             cursor.executemany(query, values)
                                     except Exception as e:
                                         logger.error(f'Writing to sqlite failed: {e}')
+                                        print(f'{name}; {longitude}; {latitude}; {address}; {rating}; {rating_count}; {google_tag}; {google_url}; {ward}; {district}; {city}; {province}; {category}; {search_id}')
+                                        raise
                     
                                 elif database_type.lower() == 'mariadb':
                                     try:
@@ -280,6 +282,8 @@ def deep_scraper(config):
                                             connection.close()
                                     except Exception as e:
                                         logger.error(f'Writing to mariadb failed: {e}')
+                                        print(name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id)
+                                        raise
                     
                                 else:
                                     logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')

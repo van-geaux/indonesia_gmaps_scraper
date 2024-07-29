@@ -3,16 +3,15 @@ from datetime import datetime
 import csv
 import pandas as pd
 import pymysql
-import shutil
 import sqlite3
 import tabula
 
-from src.logger import *
+from src.logger import logger
 
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 
 def clean_table_name(category, address_filter=''):
-    logger.debug('Cleaning table name failed')
+    logger.debug('Cleaning table name')
     try:
         province = address_filter.get('Province')
         city = address_filter.get('City')

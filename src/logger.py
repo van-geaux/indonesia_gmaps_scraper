@@ -1,7 +1,21 @@
+from datetime import datetime
+from pathlib import Path
+
 import logging
 import os
-import re
+import shutil
 import yaml
+
+# check and delete oldest log
+files = list(Path('logs/').iterdir())
+files = [f for f in files if f.is_file()]
+if len(files) > 10:
+    files.sort(key=lambda f: f.stat().st_mtime)
+    oldest_file = files[0]
+    os.remove(oldest_file)
+    print(f"Deleted: {oldest_file}")
+else:
+    pass
 
 with open('config.yml', 'r') as file:
     config_content = file.read()
@@ -14,25 +28,18 @@ except:
 log_level_console = getattr(logging, log_level_str, logging.INFO)
 log_level_file = getattr(logging, log_level_str, logging.WARNING)
 
-# Create a custom logger
 logger = logging.getLogger(__name__)
-
-# Set the logger level
 logger.setLevel(logging.DEBUG)
 
-# Create handlers: one for the terminal (console) and one for the file
 console_handler = logging.StreamHandler()
-file_handler = logging.FileHandler('app.log')
+file_handler = logging.FileHandler(f'app - {str(datetime.now().date()).replace('-', '')}.log', encoding='utf-8')
 
-# Set levels for the handlers
 console_handler.setLevel(log_level_console)
 file_handler.setLevel(log_level_file)
 
-# Create formatters and add them to the handlers
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(formatter)
 file_handler.setFormatter(formatter)
 
-# Add handlers to the logger
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)

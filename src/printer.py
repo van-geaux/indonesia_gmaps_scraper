@@ -1,5 +1,5 @@
 from src.input import *
-from src.logger import *
+from src.logger import logger
 
 import pandas as pd
 import pymysql
