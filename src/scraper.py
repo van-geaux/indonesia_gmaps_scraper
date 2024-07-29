@@ -93,8 +93,9 @@ def deep_scraper(config):
         address_filter = config['Address_level']
 
         proxy_detail = {
-            "https":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
+            "http":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
         }
+        logger.debug(proxy_detail)
     except Exception as e:
         logger.error(f'Getting configuration failed: {e}')
 
@@ -209,7 +210,7 @@ def deep_scraper(config):
                                     google_url = targets_no_ad[a].find_all('a')[0]['href']
 
                                     try:
-                                        logger.info(f'Getting business data for "{name}"')
+                                        logger.info(f'Getting location data for "{name}"')
                                         # response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
                                         response_deep = http.get(google_url, proxies=proxy_detail, verify=False, timeout=10)
                                         search_data_deep = response_deep.text
@@ -226,7 +227,7 @@ def deep_scraper(config):
                                                 break
                                     except Exception as e:
                                         json_result_deep = ''
-                                        logger.error(f'Getting business data for "{name}" failed: {e}')
+                                        logger.error(f'Getting location data for "{name}" failed: {e}')
                                     
                                     try:
                                         longitude = json_result_deep[6][9][2]
