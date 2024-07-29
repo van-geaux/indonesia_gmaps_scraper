@@ -1,6 +1,8 @@
 from alive_progress import alive_bar, alive_it
 from bs4 import BeautifulSoup
 from datetime import datetime
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 from webdriver_manager.chrome import ChromeDriverManager
 
@@ -30,6 +32,19 @@ from urllib3.exceptions import InsecureRequestWarning
 warnings.simplefilter('ignore', InsecureRequestWarning)
 
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
+
+# retry mechanism
+retry_strategy = Retry(
+    total=3,
+    status_forcelist=[429, 500, 502, 503, 504],
+    method_whitelist=["HEAD", "GET", "OPTIONS"],
+    backoff_factor=1
+)
+
+adapter = HTTPAdapter(max_retries=retry_strategy)
+http = requests.Session()
+http.mount("https://", adapter)
+http.mount("http://", adapter)
 
 def get_driver(config):
     try:
@@ -195,7 +210,8 @@ def deep_scraper(config):
 
                                     try:
                                         logger.info(f'Getting business data for "{name}"')
-                                        response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
+                                        # response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
+                                        response_deep = http.get(google_url, proxies=proxy_detail, verify=False, timeout=10)
                                         search_data_deep = response_deep.text
                                         search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
                                         scripts_deep = search_soup_deep.find_all('script')
