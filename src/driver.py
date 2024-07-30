@@ -3,22 +3,16 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.proxy import Proxy, ProxyType
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
-from src.backend import *
 from src.logger import logger
-from src.utilities import *
 
-from base64 import b64encode
+# from base64 import b64encode
 import os
-import re
+# import re
 import zipfile
 
-def get_driver(config):
+def get_driver():
     try:
         logger.debug(f'Setting chrome options')
 
@@ -34,18 +28,18 @@ def get_driver(config):
     except Exception as e:
         logger.error(f'Setting chrome options failed: {e}')
     
-    try:
-        logger.debug(f'Setting selenium proxy')
-        if config['Proxy'].get('Domain'):
-            prox = Proxy()
-            prox.proxy_type = ProxyType.MANUAL
-            prox.ssl_proxy = f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
+    # try:
+    #     logger.debug(f'Setting selenium proxy')
+    #     if config['Proxy'].get('Domain'):
+    #         prox = Proxy()
+    #         prox.proxy_type = ProxyType.MANUAL
+    #         prox.ssl_proxy = f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
 
-            prox.add_to_capabilities(capabilities)
-        else:
-            logger.info('Not using proxy')
-    except Exception as e:
-        logger.error(f'Setting selenium proxy failed: {e}')
+    #         prox.add_to_capabilities(capabilities)
+    #     else:
+    #         logger.info('Not using proxy')
+    # except Exception as e:
+    #     logger.error(f'Setting selenium proxy failed: {e}')
 
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options, desired_capabilities=capabilities)
@@ -136,7 +130,7 @@ def get_driver_extension(config):
         chrome_options = Options()
         chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
+        # chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--window-size=1920x1080")
         chrome_options.add_argument("--log-level=3")
         chrome_options.add_argument("--silent")

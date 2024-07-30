@@ -3,7 +3,8 @@ import pymysql
 import sqlite3
 import urllib.parse
 
-from src.backend import *
+from src.backend import clean_table_name
+from src.logger import logger
 
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 

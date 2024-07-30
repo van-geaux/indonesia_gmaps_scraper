@@ -4,21 +4,16 @@ from datetime import datetime
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from webdriver_manager.chrome import ChromeDriverManager
-
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.proxy import Proxy, ProxyType
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from src.backend import *
-from src.driver import *
+from src.backend import db_insert
+from src.driver import get_driver, get_driver_extension
 from src.logger import logger
-from src.utilities import *
+from src.utilities import clean_table_name, create_new_df_search, create_search_link
 
 import json
 import pymysql
@@ -32,21 +27,6 @@ import warnings
 from urllib3.exceptions import InsecureRequestWarning
 warnings.simplefilter('ignore', InsecureRequestWarning)
 
-# logging.basicConfig(filename='error.log', level=logging.ERROR)
-
-# retry mechanism
-retry_strategy = Retry(
-    total=3,
-    status_forcelist=[429, 500, 502, 503, 504],
-    method_whitelist=["HEAD", "GET", "OPTIONS"],
-    backoff_factor=1
-)
-
-adapter = HTTPAdapter(max_retries=retry_strategy)
-http = requests.Session()
-http.mount("https://", adapter)
-http.mount("http://", adapter)
-
 def deep_scraper(config):
     try:
         logger.debug(f'Getting configuration')
@@ -55,6 +35,7 @@ def deep_scraper(config):
         address_filter = config['Address_level']
 
         proxy_detail = {
+            "http":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}",
             "https":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
         }
         logger.debug(proxy_detail)
@@ -83,7 +64,8 @@ def deep_scraper(config):
             break
         
         logger.info('Getting new selenium driver...')
-        driver = get_driver_extension(config)
+        driver = get_driver()
+        # driver = get_driver_extension(config)
 
         try:
             with alive_bar(calibrate=15, enrich_print=False) as bar:
@@ -102,36 +84,31 @@ def deep_scraper(config):
                         search_url = create_search_link(query, None, '', 18)
                     except Exception as e:
                         logger.error(f'Setting search query from database failed: {e}')
+                        raise
                     
                     try:
                         logger.debug(f'Checking proxy availability')
                         try:
-                            # try:
-                            #     loglevel = config.get('Log_level')
-                            # except:
-                            #     loglevel = 'other'
+                            loglevel = config.get('Log_level')
+                            if loglevel.lower() == 'debug':
+                                driver.get("http://httpbin.org/ip")
+                                ip_element = driver.find_element(By.TAG_NAME, "body")
+                                current_ip = ip_element.text
+                                logger.debug(f"Current IP: {current_ip}")
+                        except:
+                            pass
 
-                            # if loglevel.lower() == 'debug':
-                            #     driver.get("http://httpbin.org/ip")
-                            #     ip_element = driver.find_element(By.TAG_NAME, "body")
-                            #     current_ip = ip_element.text
-                            #     logger.debug(f"Current IP: {current_ip}")
-
-                            driver.get(search_url)
-                            WebDriverWait(driver, 10).until(EC.title_contains("Google Maps"))
-                            proxy_check = ''
-                        except Exception as e:
-                            logger.warning(f'Proxy failed, getting new selenium driver with new proxy: {e}')
-                            proxy_check = 'Proxy failed'
-                            break
+                        driver.get(search_url)
+                        WebDriverWait(driver, 10).until(EC.title_contains("Google Maps"))
+                        proxy_check = ''
                     except Exception as e:
-                        logger.error(f'Checking proxy availability failed: {e}')
+                        logger.warning(f'Proxy failed, getting new selenium driver with new proxy: {e}')
                         proxy_check = 'Proxy failed'
                         break
                     
                     try:
                         divSideBar=driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
-                    except Exception:
+                    except Exception as e:
                         logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
                         logger.info(f'Total time {time.time() - start_time}')
                         print('')
@@ -184,8 +161,10 @@ def deep_scraper(config):
 
                                     try:
                                         logger.info(f'Getting location data for "{name}"')
-                                        # response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
-                                        response_deep = http.get(google_url, proxies=proxy_detail, verify=False, timeout=10)
+                                        response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
+                                        # adapter = HTTPAdapter()
+                                        # http = requests.Session()
+                                        # response_deep = http.get(google_url, proxies=proxy_detail, verify=False, timeout=10)
                                         search_data_deep = response_deep.text
                                         search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
                                         scripts_deep = search_soup_deep.find_all('script')
@@ -239,11 +218,11 @@ def deep_scraper(config):
                                     a += 1
                                 except IndexError:
                                     break
-                                except Exception as e:
-                                    logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed: {e}')
-                                    break
+                        except Exception as e:
+                            logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed: {e}')
+                            break
                         
-                        finally:
+                        try:
                             if values:
                                 if database_type.lower() == 'sqlite':
                                     try:
@@ -285,6 +264,8 @@ def deep_scraper(config):
                             else:
                                 logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
                                 # bar()
+                        except Exception as e:
+                            logger.error(e)
 
                     else:
                         logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
