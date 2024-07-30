@@ -4,7 +4,11 @@
 # Default to True, change to false to open chrome while scrapping (warning, it is slow)
 Headless: 
 
-# Proxy authentication, leave blank if not using proxy
+# Default to True
+Query_search_proxy: False
+Detailed_search_proxy: 
+
+# Proxy authentication
 Proxy:
   Domain: ${PROXY_DOMAIN}
   Port: ${PROXY_PORT}

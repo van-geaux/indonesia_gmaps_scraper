@@ -26,22 +26,26 @@ import requests
 import sqlite3
 import time
 
-from aiohttp import ClientError, ClientConnectorError
+from aiohttp import ClientError, ClientConnectorError, ClientTimeout
 
 # disable SSL warnings
 import warnings
 from urllib3.exceptions import InsecureRequestWarning
 warnings.simplefilter('ignore', InsecureRequestWarning)
 
-async def fetch(session, url, proxy, retries=3):
+async def fetch(session, url, proxy='', retries=3):
+    timeout = ClientTimeout(total=10)
     for attempt in range(retries):
         try:
-            async with session.get(url, proxy=proxy, ssl=False) as response:
+            async with session.get(url, proxy=proxy, ssl=False, timeout=timeout) as response:
                 response.raise_for_status()
+                if attempt > 0:
+                    logger.info('Retry attempt succeeded')
                 return await response.text()
         except (ClientError, ClientConnectorError) as e:
-            logger.error(f"Request failed for {url}: {e}")
-            await asyncio.sleep(2 ** attempt)
+            logger.info(f"Request failed for {url}: {e}")
+            logger.info(f'Retry attempt {attempt + 1}...')
+            await asyncio.sleep(1)
         except Exception as e:
             logger.error(f"An unexpected error occurred: {e}")
             break
@@ -138,23 +142,23 @@ async def main(targets_no_ad, proxy_detail, ward, district, city, province, cate
         logger.error(e)
         raise
 
-async def write_to_mariadb(config, category, address_filter, results):
+async def write_to_mariadb(host, port, user, password, database, table_name, results):
     conn = await aiomysql.connect(host='your_host', port=3306,
                                   user='your_username', password='your_password',
                                   db='your_db', loop=asyncio.get_event_loop())
     async with conn.cursor() as cur:
         await cur.executemany(f"""
-            INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
+            INSERT INTO {table_name} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, results)
         await conn.commit()
     conn.close()
 
-async def write_to_sqlite(config, category, address_filter, results):
+async def write_to_sqlite(db_location, table_name, results):
     try:
-        async with aiosqlite.connect(config['Data_source']['Local'].get('Location')) as db:
+        async with aiosqlite.connect(db_location) as db:
             await db.executemany(f"""
-                INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
+                INSERT INTO {table_name} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, results)
             await db.commit()
@@ -169,17 +173,19 @@ def deep_scraper(config):
         category = config.get('Category')
         address_filter = config['Address_level']
 
-        proxy_detail = {
-            "http":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}",
-            "https":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
-        }
+        # proxy_detail = {
+        #     "http":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}",
+        #     "https":f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
+        # }
+        proxy_detail = f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
         logger.debug(proxy_detail)
     except Exception as e:
         logger.error(f'Getting configuration failed: {e}')
 
     print('')
     logger.info('Checking database, creating if not exists...')
-    db_insert(database_type, clean_table_name(category, address_filter), config)
+    table_name = clean_table_name(category, address_filter)
+    db_insert(database_type, table_name, config)
 
     proxy_count = 0
     proxy_check = ''
@@ -199,8 +205,14 @@ def deep_scraper(config):
             break
         
         logger.info('Getting new selenium driver...')
-        # driver = get_driver(config)
-        driver = get_driver_extension(config)
+
+        if config.get('Query_search_proxy') == True or config.get('Query_search_proxy') is None:
+            driver = get_driver_extension(config)
+        elif config.get('Query_search_proxy') == False:
+            driver = get_driver(config)
+        else:
+            logger.error('Unrecognized browser configuration option')
+            raise
 
         try:
             with alive_bar(calibrate=15, enrich_print=False) as bar:
@@ -406,9 +418,25 @@ def deep_scraper(config):
                         # except Exception as e:
                         #     logger.error(e)
 
-                        proxy_detail = f'http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}'
-                        results = asyncio.run(main(targets_no_ad, proxy_detail, ward, district, city, province, category, search_id, dbtime))
-                        asyncio.run(write_to_sqlite(config, category, address_filter, results))
+                        # proxy_str = f'http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}'
+                        
+                        if config.get('Detailed_search_proxy') == True or config.get('Detailed_search_proxy') is None:
+                            results = asyncio.run(main(targets_no_ad, proxy_detail, ward, district, city, province, category, search_id, dbtime))
+                        elif config.get('Detailed_search_proxy') == False:
+                            results = asyncio.run(main(targets_no_ad, '', ward, district, city, province, category, search_id, dbtime))
+                        else:
+                            logger.error('Unrecognized detailed search proxy configuration')
+                            raise
+                        
+                        if results:
+                            if database_type.lower() == 'sqlite':
+                                db_location = config['Data_source']['Local'].get('Location')
+                                asyncio.run(write_to_sqlite(db_location, table_name, results))
+                            elif database_type.lower() == 'mariadb':
+                                host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
+                                asyncio.run(write_to_mariadb(host, port, user, password, database, table_name, results))
+                            else:
+                                logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')
 
                         logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {len(targets_no_ad)} data in {ward}, {district}, {city}, {province}')
 
