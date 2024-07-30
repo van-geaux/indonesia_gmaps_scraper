@@ -26,18 +26,26 @@ import requests
 import sqlite3
 import time
 
+from aiohttp import ClientError, ClientConnectorError
+
 # disable SSL warnings
 import warnings
 from urllib3.exceptions import InsecureRequestWarning
 warnings.simplefilter('ignore', InsecureRequestWarning)
 
-async def fetch(session, url, proxy):
-    try:
-        async with session.get(url, proxy=proxy, ssl=False) as response:
-            return await response.text()
-    except Exception as e:
-        logger.error(f"Request failed for {url}: {e}")
-        return None
+async def fetch(session, url, proxy, retries=3):
+    for attempt in range(retries):
+        try:
+            async with session.get(url, proxy=proxy, ssl=False) as response:
+                response.raise_for_status()
+                return await response.text()
+        except (ClientError, ClientConnectorError) as e:
+            logger.error(f"Request failed for {url}: {e}")
+            await asyncio.sleep(2 ** attempt)
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            break
+    return None
 
 async def process_target(session, target, proxy_detail, ward, district, city, province, category, search_id, dbtime):
     try:
@@ -191,8 +199,8 @@ def deep_scraper(config):
             break
         
         logger.info('Getting new selenium driver...')
-        driver = get_driver()
-        # driver = get_driver_extension(config)
+        # driver = get_driver(config)
+        driver = get_driver_extension(config)
 
         try:
             with alive_bar(calibrate=15, enrich_print=False) as bar:
@@ -224,7 +232,7 @@ def deep_scraper(config):
                                 logger.debug(f"Current IP: {current_ip}")
                         except:
                             pass
-
+                        logger.debug(search_url)
                         driver.get(search_url)
                         WebDriverWait(driver, 10).until(EC.title_contains("Google Maps"))
                         proxy_check = ''

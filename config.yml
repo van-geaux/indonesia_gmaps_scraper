@@ -1,6 +1,9 @@
 # config.yml
 # support environment variables in .env file
 
+# Default to True, change to false to open chrome while scrapping (warning, it is slow)
+Headless: 
+
 # Proxy authentication, leave blank if not using proxy
 Proxy:
   Domain: ${PROXY_DOMAIN}

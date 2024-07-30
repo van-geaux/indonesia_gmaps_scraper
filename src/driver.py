@@ -12,14 +12,16 @@ import os
 # import re
 import zipfile
 
-def get_driver():
+def get_driver(config):
     try:
         logger.debug(f'Setting chrome options')
 
         chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920x1080")
+
+        if config.get('Headless') is None or config.get('Headless') == True:
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--window-size=1920x1080")
 
         chrome_options.add_argument("--log-level=3")
         chrome_options.add_argument("--silent")
@@ -128,9 +130,12 @@ def get_driver_extension(config):
                 zp.write(os.path.join(extension_dir, 'background.js'), 'background.js')
 
         chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--disable-gpu")
-        # chrome_options.add_argument("--no-sandbox")
+
+        if config.get('Headless') is None or config.get('Headless') == True:
+            chrome_options.add_argument("--headless=new")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--no-sandbox")
+
         chrome_options.add_argument("--window-size=1920x1080")
         chrome_options.add_argument("--log-level=3")
         chrome_options.add_argument("--silent")
