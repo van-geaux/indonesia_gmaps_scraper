@@ -244,14 +244,18 @@ def deep_scraper(config):
                     
                     keepScrolling=True
                     try:
+                        logger.info(f'Query {i+1}/{len(df_search)} Getting data for {ward}, {district}, {city}, {province}')
+                        scroll_count = 0
                         while keepScrolling:
                             try:
                                 logger.debug(f'Page scroll')
                                 divSideBar.send_keys(Keys.PAGE_DOWN)
                                 div_html = driver.find_element(By.TAG_NAME, "html").get_attribute('outerHTML')
+                                scroll_count += 1
 
                                 if "You've reached the end of the list." in div_html or 'Anda telah mencapai akhir daftar.' in div_html:
                                     keepScrolling=False
+                                    logger.info(f'Total scrolls: {scroll_count}')
                             except Exception as e:
                                 logger.error(f'Page scroll failed: {e}')
                     except:
@@ -394,12 +398,10 @@ def deep_scraper(config):
                         # except Exception as e:
                         #     logger.error(e)
 
-                        logger.info(f'Query {i+1}/{len(df_search)} Getting data for {ward}, {district}, {city}, {province}')
-
                         proxy_detail = f'http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}'
                         results = asyncio.run(main(targets_no_ad, proxy_detail, ward, district, city, province, category, search_id, dbtime))
                         asyncio.run(write_to_sqlite(config, category, address_filter, results))
-                        
+
                         logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {len(targets_no_ad)} data in {ward}, {district}, {city}, {province}')
 
                     else:
