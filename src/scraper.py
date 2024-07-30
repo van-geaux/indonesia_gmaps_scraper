@@ -15,6 +15,10 @@ from src.driver import get_driver, get_driver_extension
 from src.logger import logger
 from src.utilities import clean_table_name, create_new_df_search, create_search_link
 
+import aiohttp
+import aiomysql
+import aiosqlite
+import asyncio
 import json
 import pymysql
 import re
@@ -26,6 +30,129 @@ import time
 import warnings
 from urllib3.exceptions import InsecureRequestWarning
 warnings.simplefilter('ignore', InsecureRequestWarning)
+
+async def fetch(session, url, proxy):
+    try:
+        async with session.get(url, proxy=proxy, ssl=False) as response:
+            return await response.text()
+    except Exception as e:
+        logger.error(f"Request failed for {url}: {e}")
+        return None
+
+async def process_target(session, target, proxy_detail, ward, district, city, province, category, search_id, dbtime):
+    try:
+        name = target.find_all("div", {'class':True})[0].find('a')['aria-label']
+
+        try:
+            rating = float(target.find_all('span')[4].find_all('span')[0].text.strip().replace(',', '.'))
+        except:
+            rating = 0
+
+        try:
+            rating_count = int(target.find_all("div")[17].find_all("span")[4].text.strip()[1:-1].replace(',', ''))
+        except:
+            rating_count = 0
+
+        google_url = target.find_all('a')[0]['href']
+
+        try:
+            logger.info(f'Getting location data for "{name}"')
+            search_data_deep = await fetch(session, google_url, proxy_detail)
+            if not search_data_deep:
+                raise ValueError("No data received")
+
+            search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
+            scripts_deep = search_soup_deep.find_all('script')
+
+            for script_deep in scripts_deep:
+                if 'window.APP_INITIALIZATION_STATE' in str(script_deep):
+                    data_deep = str(script_deep).split('=', 3)[3]
+                    data2_deep = data_deep.rsplit(';', 10)[0].split(";window.APP_")[1].split("INITIALIZATION_STATE=")[1]
+                    json_data_deep = json.loads(data2_deep)
+                    type_deep = json_data_deep[3][-1][5:]
+                    json_result_deep = json.loads(type_deep)
+                    break
+        except Exception as e:
+            json_result_deep = ''
+            logger.error(f'Getting location data for "{name}" failed: {e}')
+        
+        try:
+            longitude = json_result_deep[6][9][2]
+        except:
+            try:
+                coordinate = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', target.find_all("div")[0].find("a")['href'])
+                longitude = float(coordinate.group(1))
+            except:
+                longitude = ''
+
+        try:
+            latitude = json_result_deep[6][9][3]
+        except:
+            try:
+                latitude = float(coordinate.group(2))
+            except:
+                latitude = ''
+        
+        try:
+            address = json_result_deep[6][18]
+        except:
+            try:
+                address = [span for span in target.find_all('span', {'aria-hidden':'', 'aria-label':'', 'class':''}) if not span.find('span')][1].text.strip()
+            except:
+                address = ''
+
+        try:
+            google_tag = str(json_result_deep[6][13]).strip('[').strip(']').replace('\'','')
+        except:
+            try:
+                google_tag = [span for span in target.find_all('span', {'aria-label':'', 'aria-hidden':'', 'class':''}) if not span.find('span')][0].text.strip()
+            except:
+                google_tag = ''
+
+        return (name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id, dbtime)
+    except IndexError:
+        return None
+    except Exception as e:
+        logger.error(e)
+        raise
+
+async def main(targets_no_ad, proxy_detail, ward, district, city, province, category, search_id, dbtime):
+    try:
+        async with aiohttp.ClientSession() as session:
+            tasks = []
+            for i in range(0, len(targets_no_ad)):
+                target = targets_no_ad[i]
+                task = process_target(session, target, proxy_detail, ward, district, city, province, category, search_id, dbtime)
+                tasks.append(task)
+            results = await asyncio.gather(*tasks)
+        return [result for result in results if result is not None]
+    except Exception as e:
+        logger.error(e)
+        raise
+
+async def write_to_mariadb(config, category, address_filter, results):
+    conn = await aiomysql.connect(host='your_host', port=3306,
+                                  user='your_username', password='your_password',
+                                  db='your_db', loop=asyncio.get_event_loop())
+    async with conn.cursor() as cur:
+        await cur.executemany(f"""
+            INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, results)
+        await conn.commit()
+    conn.close()
+
+async def write_to_sqlite(config, category, address_filter, results):
+    try:
+        async with aiosqlite.connect(config['Data_source']['Local'].get('Location')) as db:
+            await db.executemany(f"""
+                INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, results)
+            await db.commit()
+    except Exception as e:
+        logger.error(e)
+        raise
 
 def deep_scraper(config):
     try:
@@ -139,133 +266,141 @@ def deep_scraper(config):
                         logger.error(f'Getting page html failed: {e}')
 
                     if targets_no_ad:
-                        values = []
-                        a = 0
-                        try:
-                            logger.info(f'Query {i+1}/{len(df_search)} Getting data for {ward}, {district}, {city}, {province}')
-                            while True:
-                                try:
-                                    name = targets_no_ad[a].find_all("div", {'class':True})[0].find('a')['aria-label']
+                        # values = []
+                        # a = 0
+                        # try:
+                        #     logger.info(f'Query {i+1}/{len(df_search)} Getting data for {ward}, {district}, {city}, {province}')
+                        #     while True:
+                        #         try:
+                        #             name = targets_no_ad[a].find_all("div", {'class':True})[0].find('a')['aria-label']
 
-                                    try:
-                                        rating = float(targets_no_ad[a].find_all('span')[4].find_all('span')[0].text.strip().replace(',','.'))
-                                    except:
-                                        rating = 0
+                        #             try:
+                        #                 rating = float(targets_no_ad[a].find_all('span')[4].find_all('span')[0].text.strip().replace(',','.'))
+                        #             except:
+                        #                 rating = 0
 
-                                    try:
-                                        rating_count = int(targets_no_ad[a].find_all("div")[17].find_all("span")[4].text.strip()[1:-1].replace(',',''))
-                                    except:
-                                        rating_count = 0
+                        #             try:
+                        #                 rating_count = int(targets_no_ad[a].find_all("div")[17].find_all("span")[4].text.strip()[1:-1].replace(',',''))
+                        #             except:
+                        #                 rating_count = 0
 
-                                    google_url = targets_no_ad[a].find_all('a')[0]['href']
+                        #             google_url = targets_no_ad[a].find_all('a')[0]['href']
 
-                                    try:
-                                        logger.info(f'Getting location data for "{name}"')
-                                        response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
-                                        # adapter = HTTPAdapter()
-                                        # http = requests.Session()
-                                        # response_deep = http.get(google_url, proxies=proxy_detail, verify=False, timeout=10)
-                                        search_data_deep = response_deep.text
-                                        search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
-                                        scripts_deep = search_soup_deep.find_all('script')
+                        #             try:
+                        #                 logger.info(f'Getting location data for "{name}"')
+                        #                 response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
+                        #                 # adapter = HTTPAdapter()
+                        #                 # http = requests.Session()
+                        #                 # response_deep = http.get(google_url, proxies=proxy_detail, verify=False, timeout=10)
+                        #                 search_data_deep = response_deep.text
+                        #                 search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
+                        #                 scripts_deep = search_soup_deep.find_all('script')
 
-                                        for script_deep in scripts_deep:
-                                            if 'window.APP_INITIALIZATION_STATE' in str(script_deep):
-                                                data_deep = str(script_deep).split('=',3)[3]
-                                                data2_deep = data_deep.rsplit(';',10)[0].split(";window.APP_")[1].split("INITIALIZATION_STATE=")[1]
-                                                json_data_deep = json.loads(data2_deep)
-                                                type_deep = json_data_deep[3][-1][5:]
-                                                json_result_deep = json.loads(type_deep)
-                                                break
-                                    except Exception as e:
-                                        json_result_deep = ''
-                                        logger.error(f'Getting location data for "{name}" failed: {e}')
+                        #                 for script_deep in scripts_deep:
+                        #                     if 'window.APP_INITIALIZATION_STATE' in str(script_deep):
+                        #                         data_deep = str(script_deep).split('=',3)[3]
+                        #                         data2_deep = data_deep.rsplit(';',10)[0].split(";window.APP_")[1].split("INITIALIZATION_STATE=")[1]
+                        #                         json_data_deep = json.loads(data2_deep)
+                        #                         type_deep = json_data_deep[3][-1][5:]
+                        #                         json_result_deep = json.loads(type_deep)
+                        #                         break
+                        #             except Exception as e:
+                        #                 json_result_deep = ''
+                        #                 logger.error(f'Getting location data for "{name}" failed: {e}')
                                     
-                                    try:
-                                        longitude = json_result_deep[6][9][2]
-                                    except:
-                                        try:
-                                            coordinate = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', targets_no_ad[a].find_all("div")[0].find("a")['href'])
-                                            longitude = float(coordinate.group(1))
-                                        except:
-                                            longitude = ''
+                        #             try:
+                        #                 longitude = json_result_deep[6][9][2]
+                        #             except:
+                        #                 try:
+                        #                     coordinate = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', targets_no_ad[a].find_all("div")[0].find("a")['href'])
+                        #                     longitude = float(coordinate.group(1))
+                        #                 except:
+                        #                     longitude = ''
 
-                                    try:
-                                        latitude = json_result_deep[6][9][3]
-                                    except:
-                                        try:
-                                            latitude = float(coordinate.group(2))
-                                        except:
-                                            latitude = ''
+                        #             try:
+                        #                 latitude = json_result_deep[6][9][3]
+                        #             except:
+                        #                 try:
+                        #                     latitude = float(coordinate.group(2))
+                        #                 except:
+                        #                     latitude = ''
                                     
-                                    try:
-                                        address = json_result_deep[6][18]
-                                    except:
-                                        try:
-                                            address = [span for span in targets_no_ad[a].find_all('span', {'aria-hidden':'', 'aria-label':'', 'class':''}) if not span.find('span')][1].text.strip()
-                                        except:
-                                            address = ''
+                        #             try:
+                        #                 address = json_result_deep[6][18]
+                        #             except:
+                        #                 try:
+                        #                     address = [span for span in targets_no_ad[a].find_all('span', {'aria-hidden':'', 'aria-label':'', 'class':''}) if not span.find('span')][1].text.strip()
+                        #                 except:
+                        #                     address = ''
 
-                                    try:
-                                        google_tag = str(json_result_deep[6][13]).strip('[').strip(']').replace('\'','')
-                                    except:
-                                        try:
-                                            google_tag = [span for span in targets_no_ad[a].find_all('span', {'aria-label':'', 'aria-hidden':'', 'class':''}) if not span.find('span')][0].text.strip()
-                                        except:
-                                            google_tag = ''
+                        #             try:
+                        #                 google_tag = str(json_result_deep[6][13]).strip('[').strip(']').replace('\'','')
+                        #             except:
+                        #                 try:
+                        #                     google_tag = [span for span in targets_no_ad[a].find_all('span', {'aria-label':'', 'aria-hidden':'', 'class':''}) if not span.find('span')][0].text.strip()
+                        #                 except:
+                        #                     google_tag = ''
 
-                                    values.append((name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id, dbtime))
-                                    a += 1
-                                except IndexError:
-                                    break
-                        except Exception as e:
-                            logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed: {e}')
-                            break
+                        #             values.append((name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id, dbtime))
+                        #             a += 1
+                        #         except IndexError:
+                        #             break
+                        # except Exception as e:
+                        #     logger.error(f'[ERROR] Query {i+1}/{len(df_search)} in {ward}, {district}, {city}, {province} failed: {e}')
+                        #     break
                         
-                        try:
-                            if values:
-                                if database_type.lower() == 'sqlite':
-                                    try:
-                                        query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-                                        with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
-                                            cursor = connection.cursor()
-                                            cursor.executemany(query, values)
-                                    except Exception as e:
-                                        logger.error(f'Writing to sqlite failed: {e}')
-                                        print(f'{name}; {longitude}; {latitude}; {address}; {rating}; {rating_count}; {google_tag}; {google_url}; {ward}; {district}; {city}; {province}; {category}; {search_id}')
-                                        raise
+                        # try:
+                        #     if values:
+                        #         if database_type.lower() == 'sqlite':
+                        #             try:
+                        #                 query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                        #                 with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
+                        #                     cursor = connection.cursor()
+                        #                     cursor.executemany(query, values)
+                        #             except Exception as e:
+                        #                 logger.error(f'Writing to sqlite failed: {e}')
+                        #                 print(f'{name}; {longitude}; {latitude}; {address}; {rating}; {rating_count}; {google_tag}; {google_url}; {ward}; {district}; {city}; {province}; {category}; {search_id}')
+                        #                 raise
                     
-                                elif database_type.lower() == 'mariadb':
-                                    try:
-                                        query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
-                                        host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
-                                        connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
+                        #         elif database_type.lower() == 'mariadb':
+                        #             try:
+                        #                 query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+                        #                 host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
+                        #                 connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
                         
-                                        try:
-                                            cursor = connection.cursor()
-                                            cursor.executemany(query, values)
-                                            connection.commit()
-                                        except Exception as e:
-                                            logger.error(e)
-                                        finally:
-                                            connection.close()
-                                    except Exception as e:
-                                        logger.error(f'Writing to mariadb failed: {e}')
-                                        print(name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id)
-                                        raise
+                        #                 try:
+                        #                     cursor = connection.cursor()
+                        #                     cursor.executemany(query, values)
+                        #                     connection.commit()
+                        #                 except Exception as e:
+                        #                     logger.error(e)
+                        #                 finally:
+                        #                     connection.close()
+                        #             except Exception as e:
+                        #                 logger.error(f'Writing to mariadb failed: {e}')
+                        #                 print(name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id)
+                        #                 raise
                     
-                                else:
-                                    logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')
-                                    # bar()
+                        #         else:
+                        #             logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')
+                        #             # bar()
 
-                                logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {a} data in {ward}, {district}, {city}, {province}')
-                                # bar()
+                        #         logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {a} data in {ward}, {district}, {city}, {province}')
+                        #         # bar()
 
-                            else:
-                                logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
-                                # bar()
-                        except Exception as e:
-                            logger.error(e)
+                        #     else:
+                        #         logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
+                        #         # bar()
+                        # except Exception as e:
+                        #     logger.error(e)
+
+                        logger.info(f'Query {i+1}/{len(df_search)} Getting data for {ward}, {district}, {city}, {province}')
+
+                        proxy_detail = f'http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}'
+                        results = asyncio.run(main(targets_no_ad, proxy_detail, ward, district, city, province, category, search_id, dbtime))
+                        asyncio.run(write_to_sqlite(config, category, address_filter, results))
+                        
+                        logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {len(targets_no_ad)} data in {ward}, {district}, {city}, {province}')
 
                     else:
                         logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
