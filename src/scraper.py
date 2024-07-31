@@ -38,7 +38,7 @@ import warnings
 from urllib3.exceptions import InsecureRequestWarning
 warnings.simplefilter('ignore', InsecureRequestWarning)
 
-# async def renew_tor_ip(password='Triplezeta17'):
+# async def renew_tor_ip(password=tor_password):
 #     try:
 #         with Controller.from_port(port=9051) as controller:
 #             controller.authenticate(password=password)
@@ -48,9 +48,9 @@ warnings.simplefilter('ignore', InsecureRequestWarning)
 #         logger.error(f"Error renewing Tor IP: {e}")
 #         raise
 
-def renew_tor_ip():
+def renew_tor_ip(tor_password):
     with Controller.from_port(port=9051) as controller:
-        controller.authenticate(password='Triplezeta17')
+        controller.authenticate(password=tor_password)
         controller.signal(Signal.NEWNYM)
         # time.sleep(1)
 
