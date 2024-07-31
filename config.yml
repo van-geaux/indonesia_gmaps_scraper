@@ -49,3 +49,6 @@ Data_source:
 
 # log level defaults to info for console and warning for file, this option will set for both
 Log_level: 
+
+# not implemented yet
+Is_tor: 

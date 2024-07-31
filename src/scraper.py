@@ -26,29 +26,58 @@ import requests
 import sqlite3
 import time
 
-from aiohttp import ClientError, ClientConnectorError, ClientTimeout
+from aiohttp import ClientTimeout, ClientError, ClientConnectorError, ClientTimeout
+from aiohttp_socks import ProxyConnector
+
+from stem import Signal
+from stem.control import Controller
+import time
 
 # disable SSL warnings
 import warnings
 from urllib3.exceptions import InsecureRequestWarning
 warnings.simplefilter('ignore', InsecureRequestWarning)
 
-async def fetch(session, url, proxy='', retries=3):
+# async def renew_tor_ip(password='Triplezeta17'):
+#     try:
+#         with Controller.from_port(port=9051) as controller:
+#             controller.authenticate(password=password)
+#             controller.signal(Signal.NEWNYM)
+#         await asyncio.sleep(5)
+#     except Exception as e:
+#         logger.error(f"Error renewing Tor IP: {e}")
+#         raise
+
+def renew_tor_ip():
+    with Controller.from_port(port=9051) as controller:
+        controller.authenticate(password='Triplezeta17')
+        controller.signal(Signal.NEWNYM)
+        # time.sleep(1)
+
+async def fetch(session, google_url, proxy_detail, retries=3):
     timeout = ClientTimeout(total=10)
     for attempt in range(retries):
         try:
-            async with session.get(url, proxy=proxy, ssl=False, timeout=timeout) as response:
+            async with session.get(google_url, proxy=proxy_detail, ssl=False, timeout=timeout) as response:
+                if attempt > 3:
+                    logger.warning('All attempts failed')
+                    return None
+
                 response.raise_for_status()
+
                 if attempt > 0:
                     logger.info('Retry attempt succeeded')
+
                 return await response.text()
+            
         except (ClientError, ClientConnectorError) as e:
-            logger.info(f"Request failed for {url}: {e}")
+            logger.info(f"Request failed for {google_url}: {e}")
             logger.info(f'Retry attempt {attempt + 1}...')
             await asyncio.sleep(1)
         except Exception as e:
             logger.error(f"An unexpected error occurred: {e}")
-            break
+            logger.info(f'Retry attempt {attempt + 1}...')
+            await asyncio.sleep(1)
     return None
 
 async def process_target(session, target, proxy_detail, ward, district, city, province, category, search_id, dbtime):
@@ -69,7 +98,12 @@ async def process_target(session, target, proxy_detail, ward, district, city, pr
 
         try:
             logger.info(f'Getting location data for "{name}"')
-            search_data_deep = await fetch(session, google_url, proxy_detail)
+            try:
+                search_data_deep = await fetch(session, google_url, proxy_detail)
+            except Exception as e:
+                logger.error(f'Can\'t connect to Tor: {e}')
+                search_data_deep = await fetch(session, google_url, proxy_detail)
+
             if not search_data_deep:
                 raise ValueError("No data received")
 
@@ -143,9 +177,9 @@ async def main(targets_no_ad, proxy_detail, ward, district, city, province, cate
         raise
 
 async def write_to_mariadb(host, port, user, password, database, table_name, results):
-    conn = await aiomysql.connect(host='your_host', port=3306,
-                                  user='your_username', password='your_password',
-                                  db='your_db', loop=asyncio.get_event_loop())
+    conn = await aiomysql.connect(host=host, port=port,
+                                  user=user, password=password,
+                                  db=database, loop=asyncio.get_event_loop())
     async with conn.cursor() as cur:
         await cur.executemany(f"""
             INSERT INTO {table_name} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
@@ -179,6 +213,7 @@ def deep_scraper(config):
         # }
         proxy_detail = f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
         logger.debug(proxy_detail)
+
     except Exception as e:
         logger.error(f'Getting configuration failed: {e}')
 
@@ -312,10 +347,14 @@ def deep_scraper(config):
 
                         #             try:
                         #                 logger.info(f'Getting location data for "{name}"')
-                        #                 response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
-                        #                 # adapter = HTTPAdapter()
-                        #                 # http = requests.Session()
-                        #                 # response_deep = http.get(google_url, proxies=proxy_detail, verify=False, timeout=10)
+                        #                 # response_deep = requests.get(google_url, proxies=proxy_detail, verify=False)
+                                        
+                        #                 renew_tor_ip()
+                        #                 response_deep = requests.get(google_url, proxies={
+                        #                     'http': 'socks5://localhost:9150',
+                        #                     'https': 'socks5://localhost:9150'
+                        #                 }, verify=False)
+
                         #                 search_data_deep = response_deep.text
                         #                 search_soup_deep = BeautifulSoup(search_data_deep, 'html.parser')
                         #                 scripts_deep = search_soup_deep.find_all('script')
@@ -366,6 +405,7 @@ def deep_scraper(config):
                         #                     google_tag = ''
 
                         #             values.append((name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id, dbtime))
+                        #             json_result_deep = ''
                         #             a += 1
                         #         except IndexError:
                         #             break
@@ -417,9 +457,13 @@ def deep_scraper(config):
                         #         # bar()
                         # except Exception as e:
                         #     logger.error(e)
-
-                        # proxy_str = f'http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}'
                         
+                        ################# ASYNC
+                        # try:
+                        #     is_tor = config.get('Is_tor')
+                        # except:
+                        #     is_tor = ''
+
                         if config.get('Detailed_search_proxy') == True or config.get('Detailed_search_proxy') is None:
                             results = asyncio.run(main(targets_no_ad, proxy_detail, ward, district, city, province, category, search_id, dbtime))
                         elif config.get('Detailed_search_proxy') == False:
@@ -428,17 +472,62 @@ def deep_scraper(config):
                             logger.error('Unrecognized detailed search proxy configuration')
                             raise
                         
-                        if results:
-                            if database_type.lower() == 'sqlite':
-                                db_location = config['Data_source']['Local'].get('Location')
-                                asyncio.run(write_to_sqlite(db_location, table_name, results))
-                            elif database_type.lower() == 'mariadb':
-                                host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
-                                asyncio.run(write_to_mariadb(host, port, user, password, database, table_name, results))
-                            else:
-                                logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')
+                        # if results:
+                        #     if database_type.lower() == 'sqlite':
+                        #         db_location = config['Data_source']['Local'].get('Location')
+                        #         asyncio.run(write_to_sqlite(db_location, table_name, results))
+                        #     elif database_type.lower() == 'mariadb':
+                        #         host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
+                        #         asyncio.run(write_to_mariadb(host, port, user, password, database, table_name, results))
+                        #     else:
+                        #         logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')
 
-                        logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {len(targets_no_ad)} data in {ward}, {district}, {city}, {province}')
+                        try:
+                            if results:
+                                if database_type.lower() == 'sqlite':
+                                    try:
+                                        query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                                        with sqlite3.connect(config['Data_source']['Local'].get('Location')) as connection:
+                                            cursor = connection.cursor()
+                                            cursor.executemany(query, results)
+                                    except Exception as e:
+                                        logger.error(f'Writing to sqlite failed: {e}')
+                                        # print(f'{name}; {longitude}; {latitude}; {address}; {rating}; {rating_count}; {google_tag}; {google_url}; {ward}; {district}; {city}; {province}; {category}; {search_id}')
+                                        raise
+                    
+                                elif database_type.lower() == 'mariadb':
+                                    try:
+                                        query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+                                        host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
+                                        connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
+                        
+                                        try:
+                                            cursor = connection.cursor()
+                                            cursor.executemany(query, results)
+                                            connection.commit()
+                                        except Exception as e:
+                                            logger.error(e)
+                                        finally:
+                                            connection.close()
+                                    except Exception as e:
+                                        logger.error(f'Writing to mariadb failed: {e}')
+                                        # print(name, longitude, latitude, address, rating, rating_count, google_tag, google_url, ward, district, city, province, category, search_id)
+                                        raise
+                    
+                                else:
+                                    logger.error('[ERROR] Database type not recognized, please check if the config.yml is correct.')
+                                    # bar()
+
+                                logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {len(results)} data in {ward}, {district}, {city}, {province}')
+                                # bar()
+
+                            else:
+                                logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
+                                # bar()
+                        except Exception as e:
+                            logger.error(e)
+
+                        # logger.info(f'[SUCCESS] Query {i+1}/{len(df_search)} {len(results)} data in {ward}, {district}, {city}, {province}')
 
                     else:
                         logger.info(f'[EMPTY] Query {i+1}/{len(df_search)} 0 data in {ward}, {district}, {city}, {province}')
