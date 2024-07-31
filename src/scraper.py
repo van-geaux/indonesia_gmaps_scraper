@@ -54,29 +54,29 @@ def renew_tor_ip(tor_password):
         controller.signal(Signal.NEWNYM)
         # time.sleep(1)
 
-async def fetch(session, google_url, proxy_detail, retries=3):
+async def fetch(session, google_url, proxy_detail, name, retries=3):
     timeout = ClientTimeout(total=10)
     for attempt in range(retries):
         try:
             async with session.get(google_url, proxy=proxy_detail, ssl=False, timeout=timeout) as response:
                 if attempt > 3:
-                    logger.warning('All attempts failed')
+                    logger.warning(f'All attempts failed for "{name}"')
                     return None
 
                 response.raise_for_status()
 
                 if attempt > 0:
-                    logger.info('Retry attempt succeeded')
+                    logger.info(f'Retry attempt succeeded for "{name}"')
 
                 return await response.text()
             
         except (ClientError, ClientConnectorError) as e:
-            logger.info(f"Request failed for {google_url}: {e}")
-            logger.info(f'Retry attempt {attempt + 1}...')
+            logger.info(f'Request failed for "{name}": {e}')
+            logger.info(f'Retry attempt {attempt + 1} for "{name}"...')
             await asyncio.sleep(1)
         except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
-            logger.info(f'Retry attempt {attempt + 1}...')
+            logger.error(f'An unexpected error occurred for "{name}": {e}')
+            logger.info(f'Retry attempt {attempt + 1} for "{name}"...')
             await asyncio.sleep(1)
     return None
 
@@ -98,11 +98,7 @@ async def process_target(session, target, proxy_detail, ward, district, city, pr
 
         try:
             logger.info(f'Getting location data for "{name}"')
-            try:
-                search_data_deep = await fetch(session, google_url, proxy_detail)
-            except Exception as e:
-                logger.error(f'Can\'t connect to Tor: {e}')
-                search_data_deep = await fetch(session, google_url, proxy_detail)
+            search_data_deep = await fetch(session, google_url, proxy_detail, name)
 
             if not search_data_deep:
                 raise ValueError("No data received")
@@ -176,29 +172,29 @@ async def main(targets_no_ad, proxy_detail, ward, district, city, province, cate
         logger.error(e)
         raise
 
-async def write_to_mariadb(host, port, user, password, database, table_name, results):
-    conn = await aiomysql.connect(host=host, port=port,
-                                  user=user, password=password,
-                                  db=database, loop=asyncio.get_event_loop())
-    async with conn.cursor() as cur:
-        await cur.executemany(f"""
-            INSERT INTO {table_name} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, results)
-        await conn.commit()
-    conn.close()
+# async def write_to_mariadb(host, port, user, password, database, table_name, results):
+#     conn = await aiomysql.connect(host=host, port=port,
+#                                   user=user, password=password,
+#                                   db=database, loop=asyncio.get_event_loop())
+#     async with conn.cursor() as cur:
+#         await cur.executemany(f"""
+#             INSERT INTO {table_name} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
+#             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+#         """, results)
+#         await conn.commit()
+#     conn.close()
 
-async def write_to_sqlite(db_location, table_name, results):
-    try:
-        async with aiosqlite.connect(db_location) as db:
-            await db.executemany(f"""
-                INSERT INTO {table_name} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, results)
-            await db.commit()
-    except Exception as e:
-        logger.error(e)
-        raise
+# async def write_to_sqlite(db_location, table_name, results):
+#     try:
+#         async with aiosqlite.connect(db_location) as db:
+#             await db.executemany(f"""
+#                 INSERT INTO {table_name} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE)
+#                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+#             """, results)
+#             await db.commit()
+#     except Exception as e:
+#         logger.error(e)
+#         raise
 
 def deep_scraper(config):
     try:
@@ -228,7 +224,7 @@ def deep_scraper(config):
     while proxy_count < 10:
         try:
             logger.debug(f'Checking loop config')
-            if config['Scrape_address'] == 'loop':
+            if config.get('Scrape_address') == 'loop':
                 df_search = create_new_df_search(config, database_type, category, address_filter)
                 logger.info(f'Total queries expected in this scraping cycle: {len(df_search)}')
         except Exception as e:
