@@ -53,6 +53,42 @@ def get_driver(config):
         
     return driver
 
+def get_tor_driver(config):
+    try:
+        logger.debug(f'Setting chrome options')
+
+        chrome_options = Options()
+
+        if config.get('Headless') is None or config.get('Headless') == True:
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--window-size=1920x1080")
+
+        chrome_options.add_argument("--log-level=3")
+        chrome_options.add_argument("--silent")
+
+    except Exception as e:
+        logger.error(f'Setting chrome options failed: {e}')
+    
+    try:
+        logger.debug(f'Setting selenium proxy')
+        if config['Proxy'].get('Domain'):
+            chrome_options.add_argument('--proxy-server=socks5://localhost:9150')
+        else:
+            logger.info('Not using proxy')
+    except Exception as e:
+        logger.error(f'Setting selenium proxy failed: {e}')
+
+    try:
+        tor_driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    except Exception as e:
+        try:
+            tor_driver = webdriver.Chrome(service=Service('driver/chromedriver.exe'), options=chrome_options)
+        except Exception as e:
+            logger.error(f'Creating driver failed: {e}')
+        
+    return tor_driver
+
 def get_driver_extension(config):
     try:
         logger.debug(f'Setting chrome options')

@@ -21,7 +21,7 @@ def create_new_df_search(config, database_type, category, address_filter=''):
             except Exception:
                 last_search = 0
 
-            query = f'SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID > {last_search}'
+            query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID > {last_search}"
             
             try:
                 province = address_filter.get('Province').upper()
@@ -73,7 +73,7 @@ def create_new_df_search(config, database_type, category, address_filter=''):
                     except Exception:
                         last_search = 0
 
-                    query = f'SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID > {last_search}'
+                    query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID > {last_search}"
                     
                     try:
                         province = address_filter.get('Province').upper()

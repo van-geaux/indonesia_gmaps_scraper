@@ -21,13 +21,13 @@ def clean_table_name(category, address_filter=''):
         table_name = category.replace(' ', '')
 
         if province:
-            table_name += f'_{province.replace(' ','').lower()}'
+            table_name += f"_{province.replace(' ','').lower()}"
         if city:
-            table_name += f'_{city.replace(' ','').lower()}'
+            table_name += f"_{city.replace(' ','').lower()}"
         if district:
-            table_name += f'_{district.replace(' ','').lower()}'
+            table_name += f"_{district.replace(' ','').lower()}"
         if ward:
-            table_name += f'_{ward.replace(' ','').lower()}'
+            table_name += f"_{ward.replace(' ','').lower()}"
     except Exception as e:
         logger.error(f'Cleaning table name failed: {e}')
         
@@ -91,7 +91,7 @@ def db_check(config):
                         try:
                             logger.debug(f'Preparing csv file')
                             with open(config['Data_source']['Local'].get('Csv_location'), 'r') as csvfile:
-                                logger.info(f'Copying from {config['Data_source']['Local'].get('Csv_location')}')
+                                logger.info(f"Copying from {config['Data_source']['Local'].get('Csv_location')}")
                                 csvreader = csv.reader(csvfile)
                                 headers = next(csvreader)
                                 headers = [header for header in headers if header]
@@ -127,7 +127,7 @@ def db_check(config):
                     elif config['Data_source']['Local'].get('Xlsx_location'):
                         logger.debug(f'Preparing xlsx file')
                         try:
-                            logger.info(f'Copying from {config['Data_source']['Local'].get('Xlsx_location')}')
+                            logger.info(f"Copying from {config['Data_source']['Local'].get('Xlsx_location')}")
                             df = pd.read_excel(config['Data_source']['Local'].get('Xlsx_location'), engine='openpyxl')
                             df = df.drop(columns=['ID'])
                             df = df.drop(columns=['DATA_UPDATE'])

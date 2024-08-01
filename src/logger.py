@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 console_handler = logging.StreamHandler()
-file_handler = logging.FileHandler(f'logs/app-{str(datetime.now().date()).replace('-', '')}.log', encoding='utf-8')
+file_handler = logging.FileHandler(f"logs/app-{str(datetime.now().date()).replace('-', '')}.log", encoding='utf-8')
 
 console_handler.setLevel(log_level_console)
 file_handler.setLevel(log_level_file)
