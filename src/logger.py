@@ -6,6 +6,10 @@ import os
 import shutil
 import yaml
 
+# Check if the logs path exist
+if not os.path.exists('/logs'):
+    os.makedirs('/logs')
+
 # check and delete oldest log
 files = list(Path('logs/').iterdir())
 files = [f for f in files if f.is_file()]

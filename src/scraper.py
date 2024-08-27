@@ -51,7 +51,7 @@ async def renew_tor_ip(tor_password):
 
 async def fetch(session, google_url, proxy_detail, name, retries=10):
     timeout = ClientTimeout(total=10)
-    for attempt in range(retries+1):
+    for attempt in range(retries+2):
         try:
             async with session.get(google_url, proxy=proxy_detail, ssl=False, timeout=timeout) as response:
                 if attempt > retries:
