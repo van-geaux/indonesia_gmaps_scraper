@@ -1,10 +1,7 @@
-from alive_progress import alive_bar, alive_it
+from alive_progress import alive_bar
 from bs4 import BeautifulSoup
 from datetime import datetime
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
@@ -16,13 +13,10 @@ from src.logger import logger
 from src.utilities import clean_table_name, create_new_df_search, create_search_link
 
 import aiohttp
-import aiomysql
-import aiosqlite
 import asyncio
 import json
 import pymysql
 import re
-import requests
 import sqlite3
 import sys
 import time
