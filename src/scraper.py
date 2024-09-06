@@ -122,6 +122,8 @@ async def fetch_tor(google_url, name, tor_driver=None, retries=4):
 async def process_target(session, target, proxy_detail, ward, district, city, province, category, search_id, dbtime, tor_driver=None, renewal_task=None):
     try:
         name = target.find_all("div", {'class':True})[0].find('a')['aria-label']
+        if name == "..":
+            return ("..", "..", "..", "..", 0, 0, "..", "..", ward, district, city, province, category, search_id, dbtime)
 
         try:
             rating = float(target.find_all('span')[4].find_all('span')[0].text.strip().replace(',', '.'))

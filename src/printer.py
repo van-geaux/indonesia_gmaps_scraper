@@ -1,6 +1,7 @@
 from src.input import *
 from src.logger import logger
 
+import os
 import pandas as pd
 import pymysql
 import sqlite3
@@ -68,6 +69,9 @@ def data_print(config):
         table_option = int(input(f'{table_list}\nChoose the table you want to export (enter only number): '))
 
         try:
+            if not os.path.exists('output/'):
+                os.makedirs('output/')
+                
             logger.debug('Getting table data')
             with connection.cursor() as cursor:
                 cursor = connection.cursor()
