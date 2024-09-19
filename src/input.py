@@ -20,7 +20,7 @@ Search loop
   District/subdistrict = {('All' if config['Address_level'].get('District/subdistrict') is None else config['Address_level'].get('District/subdistrict'))}
   Ward/village = {('All' if config['Address_level'].get('Ward/village') is None else config['Address_level'].get('Ward/village'))}
 
-Database = {('Local SQLite' if config['Data_source'].get('Local').get('Location') else config['Data_source'].get('External').get('Domain'))}
+Database = {('Local SQLite' if not config['Data_source'].get('External').get('Domain') else config['Data_source'].get('External').get('Domain'))}
 
 Confirm parameters to do/continue scraping? (Y/N): ''')
         

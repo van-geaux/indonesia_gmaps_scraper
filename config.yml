@@ -17,7 +17,7 @@ Proxy:
 
 # Query
 # must be filled: i.e.restaurants, company registry
-Category: company registry
+Category: perusahaan
 
 # 'once' or 'loop' through data source based on address level below, currently not implemented yet but dont remove or change this value!
 Scrape_address: loop
@@ -30,16 +30,17 @@ Address_level:
   District/subdistrict: 
   Ward/village: 
 
+# default to external if type is not empty
 Data_source:
   Local:
-    Location: backend/data.db # needed, you can change but don't leave empty
+    Location: backend/data.db 
     Csv_location: backend/data_template.csv # will fill csv data to the database
     Xlsx_location: # will fill xlsx data to the database
-    Address_table_name: randomized_address # needed
+    Address_table_name: randomized_address
   
-  # currently only support MariaDb, ignored if local (location and address table name) is not empty
+  # currently only support MariaDb
   External:
-    Type: MariaDb
+    Type: mariadb
     Domain: ${SOURCE_EXTERNAL_DOMAIN}
     Port: ${SOURCE_EXTERNAL_PORT}
     User: ${SOURCE_EXTERNAL_USER}

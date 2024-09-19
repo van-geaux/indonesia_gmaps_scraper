@@ -200,7 +200,7 @@ def db_insert(database_type, table_name, config):
                 try:
                     with connection.cursor() as cursor:
                         tables = {
-                            f'{table_name}': 'ID INT AUTO_INCREMENT PRIMARY KEY, NAME TEXT, LONGITUDE TEXT, LATITUDE TEXT, ADDRESS TEXT, RATING FLOAT, RATING_COUNT INT, GOOGLE_TAGS TEXT, URL TEXT, WARD TEXT, DISTRICT TEXT, CITY TEXT, PROVINCE TEXT, TYPE TEXT, SEARCH_ID INT, DATA_UPDATE DATETIME'}
+                            f'{table_name}': 'ID INT AUTO_INCREMENT PRIMARY KEY, NAME TEXT, LONGITUDE TEXT, LATITUDE TEXT, ADDRESS TEXT, RATING FLOAT, RATING_COUNT INT, GOOGLE_TAGS TEXT, GOOGLE_URL TEXT, WARD TEXT, DISTRICT TEXT, CITY TEXT, PROVINCE TEXT, TYPE TEXT, SEARCH_ID INT, DATA_UPDATE DATETIME'}
                         for table, schema in tables.items():
                             cursor.execute(f'CREATE TABLE IF NOT EXISTS {table} ({schema})')
                     connection.commit()

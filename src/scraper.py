@@ -301,7 +301,7 @@ async def parent_query(i, driver, loglevel, df_search, ward, district, city, pro
 def deep_scraper(config):
     try:
         logger.debug(f'Getting configuration')
-        database_type = ('sqlite' if config['Data_source']['Local'].get('Location') else config['Data_source']['External'].get('Type').lower())
+        database_type = ('sqlite' if not config['Data_source']['External'].get('Type').lower() else config['Data_source']['External'].get('Type').lower())
         category = config.get('Category')
         address_filter = config['Address_level']
 
@@ -408,7 +408,11 @@ def deep_scraper(config):
                                 elif database_type.lower() == 'mariadb':
                                     try:
                                         query = f'INSERT INTO {clean_table_name(category, address_filter)} (NAME, LONGITUDE, LATITUDE, ADDRESS, RATING, RATING_COUNT, GOOGLE_TAGS, GOOGLE_URL, WARD, DISTRICT, CITY, PROVINCE, TYPE, SEARCH_ID, DATA_UPDATE) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
-                                        host, port, user, password, database = [i.replace(' ','') for i in open('authentication/mariadb', 'r').read().split(',')]
+                                        host = config['Data_source']['External'].get('Domain')
+                                        port = config['Data_source']['External'].get('Port')
+                                        user = config['Data_source']['External'].get('User')
+                                        password = config['Data_source']['External'].get('Password')
+                                        database = config['Data_source']['External'].get('Database_name')
                                         connection = pymysql.connect(host=host, port=int(port), user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
                         
                                         try:

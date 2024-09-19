@@ -68,12 +68,13 @@ def create_new_df_search(config, database_type, category, address_filter=''):
             try:
                 with connection.cursor() as cursor:
                     try:
-                        cursor.execute(f'SELECT SEARCH_ID FROM {table_name} ORDER BY ID DESC LIMIT 1')
-                        last_search = cursor.fetchone()[0]
+                        cursor.execute(f'SELECT SEARCH_ID FROM perusahaan ORDER BY SEARCH_ID DESC LIMIT 1')
+                        result = cursor.fetchone()
+                        last_search = result.get('SEARCH_ID')
                     except Exception:
                         last_search = 0
 
-                    query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID > {last_search}"
+                    query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID FROM {config['Data_source']['External'].get('Address_table_name')} WHERE ID > {last_search}"
                     
                     try:
                         province = address_filter.get('Province').upper()
@@ -112,7 +113,8 @@ def create_new_df_search(config, database_type, category, address_filter=''):
 
             finally:
                 connection.close()
-    except:
+    except Exception as e:
+        logger.error(e)
         df_search = ''
             
     return df_search
