@@ -9,20 +9,27 @@ from src.logger import logger
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 
 
-def create_new_df_search(config, database_type, category, address_filter=''):
+def create_new_df_search(config, database_type, category, address_filter='', rerun):
     table_name = clean_table_name(category, address_filter)
     try:
         if database_type.lower() == 'sqlite':
-            try:
-                with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
-                    cursor = connection.cursor()
-                    cursor.execute(f'SELECT SEARCH_ID FROM {table_name} ORDER BY ID DESC LIMIT 1')
-                    last_search = cursor.fetchone()[0]
-            except Exception:
-                last_search = 0
 
-            query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID > {last_search}"
-            
+            if rerun == 'no':
+                try:
+                    with sqlite3.connect(config['Data_source'].get('Local').get('Location')) as connection:
+                        cursor = connection.cursor()
+                        cursor.execute(f'SELECT SEARCH_ID FROM {table_name} ORDER BY ID DESC LIMIT 1')
+                        last_search = cursor.fetchone()[0]
+                except Exception:
+                    last_search = 0
+
+                query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID > {last_search}"
+            elif rerun == 'yes':
+                query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID AS SEARCH_ID FROM {config['Data_source']['Local'].get('Address_table_name')} WHERE SEARCH_ID NOT IN (SELECT DISTINCT SEARCH_ID FROM {config['Data_source']['Local'].get('Database_name')})"
+            else:
+                logger.error('Rerun not recognized')
+                raise
+
             try:
                 province = address_filter.get('Province').upper()
             except:
@@ -67,15 +74,21 @@ def create_new_df_search(config, database_type, category, address_filter=''):
 
             try:
                 with connection.cursor() as cursor:
-                    try:
-                        cursor.execute(f'SELECT SEARCH_ID FROM perusahaan ORDER BY SEARCH_ID DESC LIMIT 1')
-                        result = cursor.fetchone()
-                        last_search = result.get('SEARCH_ID')
-                    except Exception:
-                        last_search = 0
+                    if rerun == 'no':
+                        try:
+                            cursor.execute(f'SELECT SEARCH_ID FROM {table_name} ORDER BY SEARCH_ID DESC LIMIT 1')
+                            result = cursor.fetchone()
+                            last_search = result.get('SEARCH_ID')
+                        except Exception:
+                            last_search = 0
 
-                    query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID FROM {config['Data_source']['External'].get('Address_table_name')} WHERE ID > {last_search}"
-                    
+                        query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID FROM {config['Data_source']['External'].get('Address_table_name')} WHERE ID > {last_search}"
+                    elif rerun == 'yes':
+                        query = f"SELECT PROVINCE, CITY, DISTRICT, WARD, POSTAL_CODE, ID FROM {config['Data_source']['External'].get('Address_table_name')} WHERE ID NOT IN (SELECT DISTINCT SEARCH_ID FROM {table_name})"
+                    else:
+                        logger.error('Rerun not recognized')
+                        raise
+
                     try:
                         province = address_filter.get('Province').upper()
                     except:

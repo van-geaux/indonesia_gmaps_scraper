@@ -167,21 +167,21 @@ async def process_target(session, target, proxy_detail, ward, district, city, pr
             logger.error(f'Getting location data for "{name}" failed: {e}')
         
         try:
-            longitude = json_result_deep[6][9][2]
+            latitude = json_result_deep[6][9][2]
         except:
             try:
                 coordinate = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', target.find_all("div")[0].find("a")['href'])
-                longitude = float(coordinate.group(1))
-            except:
-                longitude = ''
-
-        try:
-            latitude = json_result_deep[6][9][3]
-        except:
-            try:
-                latitude = float(coordinate.group(2))
+                latitude = float(coordinate.group(1))
             except:
                 latitude = ''
+
+        try:
+            longitude = json_result_deep[6][9][3]
+        except:
+            try:
+                longitude = float(coordinate.group(2))
+            except:
+                longitude = ''
         
         try:
             address = json_result_deep[6][18]
@@ -298,7 +298,7 @@ async def parent_query(i, driver, loglevel, df_search, ward, district, city, pro
     
     return targets_no_ad, proxy_check
 
-def deep_scraper(config):
+def deep_scraper(config, rerun):
     try:
         logger.debug(f'Getting configuration')
         database_type = ('sqlite' if not config['Data_source']['External'].get('Type').lower() else config['Data_source']['External'].get('Type').lower())
@@ -308,6 +308,8 @@ def deep_scraper(config):
         if config.get('Detailed_search_proxy') == True or config.get('Detailed_search_proxy') is None:
             proxy_detail = f"http://{config['Proxy'].get('User')}:{config['Proxy'].get('Password')}@{config['Proxy'].get('Domain')}:{config['Proxy'].get('Port')}"
             logger.debug(proxy_detail)
+        else:
+            proxy_detail = None
 
     except Exception as e:
         logger.error(f'Getting configuration failed: {e}')
@@ -324,7 +326,7 @@ def deep_scraper(config):
         try:
             logger.debug(f'Checking loop config')
             if config.get('Scrape_address') == 'loop':
-                df_search = create_new_df_search(config, database_type, category, address_filter)
+                df_search = create_new_df_search(config, database_type, category, address_filter, rerun)
                 logger.info(f'Total queries expected in this scraping cycle: {len(df_search)}')
         except Exception as e:
             logger.error(f'Checking loop config failed: {e}')

@@ -1,10 +1,13 @@
 # config.yml
 # support environment variables in .env file
 
-# Default to True, change to false to open chrome while scrapping (warning, it is slow)
+# Default to True, change to False to open chrome while scrapping (warning, slow)
 Headless: 
 
 # Default to True
+# Query_search open selenium to get the query result
+# Detailed_search use http.get for every places in the query result
+# Warning: each queries can get up to 120 places, not using proxy for Detailed_search will definitely hit bot detection in no time
 Query_search_proxy: False
 Detailed_search_proxy: 
 
@@ -49,6 +52,7 @@ Data_source:
     Address_table_name: randomized_address
 
 # log level defaults to info for console and warning for file, this option will set for both
+# debug level will also check for IP rotation per request
 Log_level: 
 
 # not implemented yet
