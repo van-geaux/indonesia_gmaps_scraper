@@ -3,8 +3,8 @@ from src.printer import *
 
 def input_worker(config):
     print('')
-    worker_input = int(input('''1: Scrape google map
-2: Continue including empty scrape result
+    worker_input = int(input('''1: Start/continue scrape google map
+2: Continue scrape, also retry all empty queries
 3: Export scrape result
 4: Delete scrape result
 5: Exit
