@@ -423,6 +423,8 @@ def deep_scraper(config, rerun):
                                             connection.commit()
                                         except Exception as e:
                                             logger.error(e)
+                                            input('Warning, write to database failed, please restart the script: ')
+                                            raise
                                         finally:
                                             connection.close()
                                     except Exception as e:

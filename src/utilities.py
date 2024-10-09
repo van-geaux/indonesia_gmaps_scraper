@@ -9,7 +9,7 @@ from src.logger import logger
 # logging.basicConfig(filename='error.log', level=logging.ERROR)
 
 
-def create_new_df_search(config, database_type, category, address_filter='', rerun):
+def create_new_df_search(config, database_type, category, address_filter='', rerun=''):
     table_name = clean_table_name(category, address_filter)
     try:
         if database_type.lower() == 'sqlite':
